@@ -36,7 +36,7 @@ export function getCurrentTimestamp(): number {
  * Format date for database storage (UTC+8)
  */
 export function formatForDB(date: dayjs.Dayjs | string | Date = dayjs()): string {
-  return formatDate(dayjs(date as any).tz(), 'YYYY-MM-DDTHH:mm:ss');
+  return formatDate(dayjs(date as any).tz(), 'YYYY-MM-DD HH:mm:ss');
 }
 
 /**
