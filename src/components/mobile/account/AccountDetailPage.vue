@@ -18,7 +18,7 @@
       <template v-if="accountInfo.type !== '信用卡'">
         <div class="account-amount">
           <div class="amount-label">账户余额(元)</div>
-          <div class="amount-value">¥{{ accountInfo.balance.toFixed(2) }}</div>
+          <div class="amount-value">¥{{ Amount.format(accountInfo.balance) }}</div>
         </div>
         <div class="account-remark" v-if="accountInfo.remark">
           <div class="remark-label">备注</div>
@@ -30,19 +30,19 @@
       <template v-else>
         <div class="account-amount">
           <div class="amount-label">已用额度(元)</div>
-          <div class="amount-value" :class="{ 'negative': accountInfo.used_limit > 0 }">
-            ¥{{ (accountInfo.used_limit || 0).toFixed(2) }}
+          <div class="amount-value" :class="{ 'negative': accountInfo.used_limit && accountInfo.used_limit > 0 }">
+            ¥{{ Amount.format(accountInfo.used_limit || 0) || '0.00' }}
           </div>
         </div>
         <div class="account-returns">
           <div class="return-item">
             <div class="return-label">总额度</div>
-            <div class="return-value">¥{{ (accountInfo.total_limit || 0).toFixed(2) }}</div>
+            <div class="return-value">¥{{ Amount.format(accountInfo.total_limit || 0) }}</div>
           </div>
           <div class="return-item">
             <div class="return-label">剩余额度</div>
             <div class="return-value positive">
-              ¥{{ ((accountInfo.total_limit || 0) - (accountInfo.used_limit || 0)).toFixed(2) }}
+              ¥{{ Amount.format((accountInfo.total_limit || 0) - (accountInfo.used_limit || 0)) }}
             </div>
           </div>
         </div>
@@ -72,11 +72,11 @@
                 <div class="transaction-content">
                   <div class="transaction-item">
                     <span class="item-label">金额</span>
-                    <span class="item-value positive">+¥{{ transaction.amount.toFixed(2) }}</span>
+                    <span class="item-value positive">+¥{{ Amount.format(transaction.amount) }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">余额</span>
-                    <span class="item-value">¥{{ transaction.balance_after.toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(transaction.balance_after) }}</span>
                   </div>
                   <div class="transaction-item" v-if="transaction.description">
                     <span class="item-label">描述</span>
@@ -103,11 +103,11 @@
                 <div class="transaction-content">
                   <div class="transaction-item">
                     <span class="item-label">金额</span>
-                    <span class="item-value negative">-¥{{ transaction.amount.toFixed(2) }}</span>
+                    <span class="item-value negative">-¥{{ Amount.format(transaction.amount) }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">余额</span>
-                    <span class="item-value">¥{{ transaction.balance_after.toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(transaction.balance_after) }}</span>
                   </div>
                   <div class="transaction-item" v-if="transaction.description">
                     <span class="item-label">描述</span>
@@ -137,11 +137,11 @@
                 <div class="transaction-content">
                   <div class="transaction-item">
                     <span class="item-label">金额</span>
-                    <span class="item-value negative">-¥{{ transaction.amount.toFixed(2) }}</span>
+                    <span class="item-value negative">-¥{{ Amount.format(transaction.amount) }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">已用额度</span>
-                    <span class="item-value">¥{{ transaction.balance_after.toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(transaction.balance_after) }}</span>
                   </div>
                   <div class="transaction-item" v-if="transaction.description">
                     <span class="item-label">描述</span>
@@ -168,11 +168,11 @@
                 <div class="transaction-content">
                   <div class="transaction-item">
                     <span class="item-label">金额</span>
-                    <span class="item-value positive">+¥{{ transaction.amount.toFixed(2) }}</span>
+                    <span class="item-value positive">+¥{{ Amount.format(transaction.amount) }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">已用额度</span>
-                    <span class="item-value">¥{{ transaction.balance_after.toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(transaction.balance_after) }}</span>
                   </div>
                   <div class="transaction-item" v-if="transaction.description">
                     <span class="item-label">描述</span>
@@ -231,6 +231,7 @@ import {
 } from '../../../services/account/accountService';
 import type { Account, AccountTransaction } from '../../../types/account/account';
 import { formatDate } from '../../../utils/timezone';
+import { Amount } from '../../../utils/number';
 
 const props = defineProps({
   accountId: {
@@ -290,14 +291,8 @@ const goBack = () => {
   emit('navigate', 'account');
 };
 
-// 格式化日期函数
-// const formatDate = (dateString: string | dayjs.Dayjs) => {
-//   return getDate(dateString).format('YYYY/MM/DD HH:mm');
-// };
-
 // 加载账户详情数据
 const loadAccountDetail = async () => {
-  console.log('Loading account detail for:', props.accountId);
 
   try {
     const account = await getAccountById(props.accountId);
@@ -307,11 +302,7 @@ const loadAccountDetail = async () => {
 
     // 加载交易记录
     allTransactions.value = await getAccountTransactions(props.accountId);
-
-    console.log('Account loaded:', accountInfo.value);
-    console.log('Transactions loaded:', allTransactions.value);
   } catch (error) {
-    console.error('Error loading account detail:', error);
     ElMessage.error('加载账户详情失败');
   }
 };
@@ -343,7 +334,6 @@ const handleDeactivate = async () => {
     emit('navigate', 'account');
   } catch (error: any) {
     if (error !== 'cancel') {
-      console.error('停用账户失败:', error);
       ElMessage.error(error.message || '停用账户失败');
     }
   }
@@ -359,12 +349,12 @@ const editAccountInfo = () => {
   if (accountInfo.value.type === '信用卡') {
     editForm.value = {
       balance: 0.00,
-      used_limit: Number((accountInfo.value.used_limit || 0).toFixed(2)),
-      total_limit: Number((accountInfo.value.total_limit || 0).toFixed(2))
+      used_limit: accountInfo.value.used_limit || 0.00,
+      total_limit: accountInfo.value.total_limit || 0.00
     };
   } else {
     editForm.value = {
-      balance: Number((accountInfo.value.balance || 0).toFixed(2)),
+      balance: editForm.value.balance || 0.00,
       used_limit: 0.00,
       total_limit: 0.00
     };
@@ -390,7 +380,7 @@ const saveEdit = async () => {
       });
       ElMessage.success('信用卡信息已更新');
     } else {
-      await updateAccountBalance(props.accountId, Number((editForm.value.balance || 0).toFixed(2)), '账户余额调整');
+      await updateAccountBalance(props.accountId, editForm.value.balance || 0, '账户余额调整');
       ElMessage.success('账户余额已更新');
     }
     showEditDialog.value = false;

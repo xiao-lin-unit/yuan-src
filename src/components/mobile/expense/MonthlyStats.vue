@@ -1,8 +1,8 @@
 <template>
   <StatOverview
     :background="image"
-    :main="[{ title: '月支出', value: '¥' + expense.toFixed(2), color: '#67c23a' }]"
-    :details="[{ title: '月收入', value: '¥' + income.toFixed(2), color: '#f56c6c' }, { title: '本月结余', value: '¥' + balance.toFixed(2), color: balance < 0 ? '#67c23a' : '#f56c6c' }]"
+    :main="[{ title: '月支出', value: '¥' + Amount.format(expense), color: '#67c23a' }]"
+    :details="[{ title: '月收入', value: '¥' + Amount.format(income), color: '#f56c6c' }, { title: '本月结余', value: '¥' + Amount.format(balance), color: balance < 0 ? '#67c23a' : '#f56c6c' }]"
   />
 </template>
 
@@ -12,6 +12,8 @@ import { getCurrentDate, formatDate } from '../../../utils/timezone';
 import db from '../../../database';
 import StatOverview from '../../../components/common/StatOverview.vue';
 import image from '@/assets/img/r2.jpg';
+import { Amount } from '../../../utils/number';
+
 
 // 接收年月参数
 const props = defineProps<{
@@ -51,18 +53,21 @@ const loadMonthlyStats = async () => {
     // 从流水表中查询类型为账户支出的记录
     const expenseTransactions = await db.query(
       'SELECT SUM(amount) as total FROM income_expense_records WHERE type = ? AND created_at BETWEEN ? AND ?',
-      ['账户支出', formatDate(start), formatDate(start)]
+      ['账户支出', formatDate(start), formatDate(end)]
     );
     
     // 从流水表中查询类型为账户收入的记录
     const incomeTransactions = await db.query(
       'SELECT SUM(amount) as total FROM income_expense_records WHERE type = ? AND created_at BETWEEN ? AND ?',
-      ['账户收入', formatDate(start), formatDate(start)]
+      ['账户收入', formatDate(start), formatDate(end)]
     );
+
+    console.log('支出查询结果:', JSON.stringify(expenseTransactions));
+    console.log('收入查询结果:', JSON.stringify(incomeTransactions));
     
     // 更新收支数据
-    expense.value = Number((expenseTransactions[0]?.total || 0).toFixed(2));
-    income.value = Number((incomeTransactions[0]?.total || 0).toFixed(2));
+    expense.value = expenseTransactions[0]?.total || 0;
+    income.value = incomeTransactions[0]?.total || 0;
     
   } catch (error) {
     console.error('加载月度收支数据失败:', error);

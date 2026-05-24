@@ -58,7 +58,7 @@
               @click="selectAccount(account)"
             >
               <div class="account-name">{{ account.name }}</div>
-              <div class="account-balance">{{ account.type === '信用卡' ? `可用: ¥${(account.total_limit - account.used_limit).toFixed(2)}` : `余额: ¥${account.balance.toFixed(2)}` }}</div>
+              <div class="account-balance">{{ account.type === '信用卡' ? `可用: ¥${Amount.format(account.total_limit - account.used_limit)}` : `余额: ¥${Amount.format(account.balance)}` }}</div>
             </div>
             <div v-if="accounts.length === 0" class="no-accounts">
               暂无账户，请先添加账户
@@ -113,10 +113,12 @@ import NumberKeypad from '../../common/NumberKeypad.vue'
 import CategoryItem from '../../common/CategoryItem.vue'
 import type { Category } from '../../../data/categories'
 import { getAccounts } from '../../../services/account/accountService'
-import db from '../../../database'
 import { expenseCategories } from '../../../data/categories'
-import { createDebitTransaction } from '../../../services/account/accountService'
-import { getCurrentString, formatForDB, getCurrentDate, getDate } from '../../../utils/timezone'
+import { addExpense } from '../../../services/expense/expenseService'
+import { getCurrentString, getCurrentDate, getDate } from '../../../utils/timezone'
+import { Amount } from '../../../utils/number'
+import { ExpenseInput } from '../../../types/expense/expense'
+
 
 const emit = defineEmits(['navigate'])
 
@@ -409,52 +411,17 @@ const saveExpense = async () => {
   }
 
   try {
-    await db.connect()
-
-    const transactionId = getCurrentDate().valueOf().toString()
-    const relatedId = transactionId
-    
-    // 使用账户出账接口 - 自动处理余额检查和账户更新
-    const debitResult = await createDebitTransaction(
-      selectedAccountObj.id,
-      amountNumber,
-      `支出：${selectedCategory.value?.name || ' '}${remark.value ? '：' + remark.value : ''}`, // 支出类型作为描述，如果不存在则使用空字符串
-      transactionId,
-      getDate(selectedDateTime.value)
-    )
-    
-    const statements = []
-    
-    // 添加账户出账相关的SQL语句
-    statements.push(...debitResult.statements)
-    
-    // 添加支出流水记录
-    const record = {
-      statement: `INSERT INTO income_expense_records 
-         (id, type, sub_type, amount, account_id, related_id, balance_after, remark, created_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      values: [
-          transactionId,
-          '账户支出',
-          selectedCategoryId.value,
-          amountNumber,
-          selectedAccountObj.id,
-          relatedId,
-          debitResult.balanceAfter.toFixed(2),
-          remark.value,
-          formatForDB(selectedDateTime.value)
-        ]
-    }
-    statements.push(record)
-
-    // ==============================================
-    // 这里是 Capacitor SQLite 正确事务写法
-    // ==============================================
-    await db.executeTransaction(statements)
+    addExpense({
+      account_id: selectedAccountObj.id,
+      amount: amountNumber,
+      sub_type: selectedCategoryId.value,
+      sub_type_name: selectedCategory.value?.name,
+      remark: remark.value,
+      created_at: selectedDateTime.value
+    } as ExpenseInput)
 
     // 执行到这里 = 事务已自动提交 
     allAccounts.value = await getAccounts()
-    console.log('保存支出成功（事务安全）')
 
   } catch (error: any) {
     // 执行到这里 = 事务已自动回滚 

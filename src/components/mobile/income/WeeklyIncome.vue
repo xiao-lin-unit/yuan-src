@@ -3,7 +3,7 @@
     <div class="section-header">
       <h3>本周收入</h3>
     </div>
-    <div class="weekly-total">总计: ¥{{ totalIncome.toFixed(2) }}</div>
+    <div class="weekly-total">总计: ¥{{ Amount.format(totalIncome) }}</div>
     <div class="finance-chart">
       <div class="chart-container">
         <div v-for="(day, index) in weeklyData" :key="index" class="chart-bar">
@@ -23,6 +23,8 @@ import { ref, computed, onMounted } from 'vue';
 import dayjs from 'dayjs';
 import { getCurrentDate, getDate, formatDate } from '../../../utils/timezone';
 import db from '../../../database';
+import { Amount } from '../../../utils/number';
+
 
 interface DayData {
   date: dayjs.Dayjs;

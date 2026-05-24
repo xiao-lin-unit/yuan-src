@@ -2,7 +2,7 @@
   <div class="daily-expense">
     <div class="date-header">
       <span class="date">{{ date }}</span>
-      <span class="total-expense">支: ¥{{ totalExpense.toFixed(2) }}</span>
+      <span class="total-expense">支: ¥{{ Amount.format(totalExpense) }}</span>
     </div>
     <div v-if="expenses.length > 0" class="expense-list">
       <div v-for="(expense, index) in expenses" :key="index" class="expense-item">
@@ -11,7 +11,7 @@
           <div v-if="expense.remark" class="expense-note">{{ expense.remark }}</div>
         </div>
         <div class="expense-details">
-          <span class="expense-amount">¥{{ expense.amount.toFixed(2) }}</span>
+          <span class="expense-amount">¥{{ Amount.format(expense.amount, 2) }}</span>
           <span class="expense-method">{{ expense.account_name }}</span>
         </div>
       </div>
@@ -27,6 +27,8 @@ import { ref, onMounted, defineProps, watch } from 'vue';
 import { getCurrentDate } from '../../../utils/timezone';
 import db from '../../../database';
 import { expenseCategories } from '../../../data/categories';
+import { Amount } from '../../../utils/number';
+
 
 const props = defineProps({
   date: {

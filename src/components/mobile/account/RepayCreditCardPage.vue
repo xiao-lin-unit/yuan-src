@@ -98,7 +98,7 @@ const loadCreditCardData = async () => {
       repayForm.value.account_id = account.id
       repayForm.value.account_name = account.name
       repayForm.value.account_type = account.type
-      repayForm.value.current_used_limit = `¥${(account.used_limit || 0).toFixed(2)}`
+      repayForm.value.current_used_limit = `¥${(account.used_limit || 0)}`
     }
   } catch (error) {
     console.error('加载信用卡数据失败:', error)
@@ -127,7 +127,7 @@ const repayCreditCard = async () => {
   // 验证还款金额不超过已用额度
   const usedLimit = creditCardInfo.value?.used_limit || 0
   if (repayForm.value.amount > usedLimit) {
-    alert(`还款金额不能超过已用额度 ¥${usedLimit.toFixed(2)}`)
+    alert(`还款金额不能超过已用额度 ¥${usedLimit}`)
     return
   }
 
@@ -135,7 +135,7 @@ const repayCreditCard = async () => {
     await repayCreditCardService({
       credit_card_id: props.accountId,
       from_account_id: repayForm.value.from_account_id,
-      amount: Number(repayForm.value.amount.toFixed(2)),
+      amount: repayForm.value.amount,
       transaction_time: repayForm.value.transaction_time,
       remark: repayForm.value.remark
     })

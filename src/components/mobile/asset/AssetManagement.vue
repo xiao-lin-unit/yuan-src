@@ -25,7 +25,7 @@
 
     <StatOverview v-if="!showEndedAssets"
       :background="image"
-      :main="[{title: '资产金额', value: '￥' + totalAssetAmount.toFixed(2), color: undefined}]"
+      :main="[{title: '资产金额', value: '￥' + Amount.format(totalAssetAmount), color: undefined}]"
       :details="[{title: '资产数量', value: totalAssetCount, color: undefined}]"
     />
 
@@ -43,7 +43,7 @@
             v-for="asset in filteredGeneralAssets"
             :key="asset.id"
             :title="asset.name"
-            :amount="Number(asset.amount.toFixed(2))"
+            :amount="Amount.format(asset.amount)"
             :icon="asset.icon"
             :color="asset.color"
             :assetId="asset.id"
@@ -58,7 +58,7 @@
             v-for="stock in filteredStocks"
             :key="stock.id"
             :title="stock.name"
-            :amount="Number((stock.cost_price * stock.quantity).toFixed(2))"
+            :amount="Amount.format(stock.cost_price * stock.quantity)"
             :icon="stock.icon"
             :color="stock.color"
             :assetId="stock.id"
@@ -73,7 +73,7 @@
             v-for="fund in filteredFunds"
             :key="fund.id"
             :title="fund.name"
-            :amount="Number((fund.cost_nav * fund.shares).toFixed(2))"
+            :amount="Amount.format(fund.cost_nav * fund.shares)"
             :icon="fund.icon"
             :color="fund.color"
             :assetId="fund.id"
@@ -109,6 +109,7 @@ import { getAccounts } from '../../../services/account/accountService';
 import type { Account } from '../../../types/account/account';
 import image from '@/assets/img/m2.jpg';
 import FloatingActionMenu from '../../common/FloatingActionMenu.vue';
+import { Amount } from '../../../utils/number';
 // import FloatingSwitchButton from '../../common/FloatingSwitchButton.vue';
 
 const emit = defineEmits(['navigate']);
@@ -197,11 +198,11 @@ const filteredFunds = computed(() => {
 
 const totalAssetAmount = computed(() => {
   if (selectedAssetType.value === '普通资产') {
-    return filteredGeneralAssets.value.reduce((sum, a) => Number((sum + (a.amount || 0.00)).toFixed(2)), 0.00);
+    return filteredGeneralAssets.value.reduce((sum, a) => sum + (a.amount || 0.00), 0.00);
   } else if (selectedAssetType.value === '股票') {
-    return filteredStocks.value.reduce((sum, s) => Number((sum + (s.cost_price * s.quantity || 0.00)).toFixed(2)), 0.00);
+    return filteredStocks.value.reduce((sum, s) => sum + (s.cost_price * s.quantity || 0.00), 0.00);
   } else {
-    return filteredFunds.value.reduce((sum, f) => Number((sum + (f.cost_nav * f.shares || 0.00)).toFixed(2)), 0.00);
+    return filteredFunds.value.reduce((sum, f) => sum + (f.cost_nav * f.shares || 0.00), 0.00);
   }
 });
 
@@ -362,17 +363,14 @@ const loadMockData = () => {
 
 
 const viewAssetDetail = (assetId: string) => {
-    console.log('查看资产详情:', assetId);
     emit('navigate', { key: 'assetDetail', params: { assetId } });
   };
   
   const viewStockDetail = (stockId: string) => {
-    console.log('查看股票详情:', stockId);
     emit('navigate', { key: 'stockDetail', params: { stockId } });
   };
   
   const viewFundDetail = (fundId: string) => {
-    console.log('查看基金详情:', fundId);
     emit('navigate', { key: 'fundDetail', params: { fundId } });
   };
 

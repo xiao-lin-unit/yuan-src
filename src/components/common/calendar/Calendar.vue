@@ -34,7 +34,7 @@
           >
             <div style="font-size: 14px; font-family: fangsong;">{{ date.day }}</div>
             <div v-if="amount[date.dateStr] && date.isCurrentMonth" class="amount-class" :style="{ color: type == 'expense' ? '#67c23a' : '#f56c6c' }">
-                ¥{{ amount[date.dateStr] }}
+                ¥{{ Amount.format(amount[date.dateStr], 2) }}
             </div>
             <div v-else style="font-size: 8px; font-weight: 500; color: blank;">{{ date.lunar }}</div>
           </div>
@@ -71,6 +71,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addDays } 
 import { Solar, Lunar, HolidayUtil } from 'lunar-javascript';
 import { Clock } from '@element-plus/icons-vue';
 import { getCurrentDate } from '../../../utils/timezone';
+import { Amount } from '../../../utils/number';
 
 const props = defineProps({
   width: { type: String, default: '500px' },

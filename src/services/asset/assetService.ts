@@ -7,6 +7,8 @@ import db from '../../database/index.js'
 import type { Asset, AssetInput } from '../../types/asset/asset.js'
 import { createDebitTransaction } from '../account/accountService.js'
 import { getCurrentDate, generateId, getCurrentString } from '../../utils/timezone.js'
+import AssetDB from '../../database/tables/assets.js'
+import AssetIncomeRecordsDB from '../../database/tables/asset_income_records.js'
 
 
 /**
@@ -62,11 +64,11 @@ export function calculatePerAssetIncome(asset: Asset): number {
 
   if (asset.calculation_type === '按金额计算') {
     // 按每期固定金额计算
-    return Number((asset.income_amount || 0).toFixed(2))
+    return asset.income_amount || 0
   } else if (asset.calculation_type === '按年收益率计算') {
     // 按年收益率计算：根据周期不同，年化收益率需要除以不同的基数
-    const rate = Number((asset.annual_yield_rate || 0.00).toFixed(4)) // / 100
-    const principal = Number((asset.amount || 0.00).toFixed(2))
+    const rate = asset.annual_yield_rate || 0.00 // / 100
+    const principal = asset.amount || 0.00
 
     if (rate <= 0 || principal <= 0) return 0.00
 
@@ -79,7 +81,7 @@ export function calculatePerAssetIncome(asset: Asset): number {
       periodDivisor = 1
     }
 
-    return Number((principal * rate / periodDivisor).toFixed(2))
+    return principal * rate / periodDivisor
   }
 
   return 0.00
@@ -96,27 +98,28 @@ export async function addAsset(assetData: AssetInput, deductFromAccount: boolean
   if (assetData.period) {
     nextIncomeDate = calculateNextIncomeDate(assetData.period, assetData.income_date || '')
   }
+  const now = getCurrentDate()
 
   const statements: { statement: string; values: any[] }[] = []
-
-  // Create asset record
-  statements.push({
-    statement: 'INSERT INTO assets (id, type, name, amount, account_id, period, period_count, income_date, next_income_date, calculation_type, income_amount, annual_yield_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    values: [
-      id,
-      assetData.type,
-      assetData.name,
-      assetData.amount.toFixed(2),
-      assetData.account_id,
-      assetData.period || null,
-      assetData.period_count || 0,
-      assetData.income_date || null,
-      nextIncomeDate || null,
-      assetData.calculation_type || null,
-      assetData.income_amount?.toFixed(2) || 0.00,
-      assetData.annual_yield_rate?.toFixed(4) || 0.00
-    ]
+  const asset = AssetDB.insert({
+    id,
+    type: assetData.type,
+    name: assetData.name,
+    amount: assetData.amount,
+    account_id: assetData.account_id,
+    period: assetData.period,
+    period_count: assetData.period_count,
+    income_date: assetData.income_date,
+    next_income_date: nextIncomeDate,
+    calculation_type: assetData.calculation_type,
+    income_amount: assetData.income_amount || 0.00,
+    annual_yield_rate: assetData.annual_yield_rate || 0.00,
+    status: '开启',
+    created_at: now,
+    updated_at: now
   })
+  // Create asset record
+  statements.push(asset)
 
   // Deduct from account if requested
   if (deductFromAccount) {
@@ -160,63 +163,11 @@ export async function getAssetById(assetId: string): Promise<Asset | null> {
  * Update asset
  */
 export async function updateAsset(assetId: string, data: Partial<Asset>): Promise<void> {
-  const fields: string[] = []
-  const values: any[] = []
-
-  if (data.name !== undefined) {
-    fields.push('name = ?')
-    values.push(data.name)
-  }
-  if (data.amount !== undefined) {
-    fields.push('amount = ?')
-    values.push(data.amount.toFixed(2))
-  }
-  if (data.account_id !== undefined) {
-    fields.push('account_id = ?')
-    values.push(data.account_id)
-  }
-  if (data.period !== undefined) {
-    fields.push('period = ?')
-    values.push(data.period)
-  }
-  if (data.period_count !== undefined) {
-    fields.push('period_count = ?')
-    values.push(data.period_count)
-  }
-  if (data.income_date !== undefined) {
-    fields.push('income_date = ?')
-    values.push(data.income_date)
-  }
-  if (data.next_income_date !== undefined) {
-    fields.push('next_income_date = ?')
-    values.push(data.next_income_date || null)
-  }
-  if (data.calculation_type !== undefined) {
-    fields.push('calculation_type = ?')
-    values.push(data.calculation_type)
-  }
-  if (data.income_amount !== undefined) {
-    fields.push('income_amount = ?')
-    values.push(data.income_amount.toFixed(2))
-  }
-  if (data.annual_yield_rate !== undefined) {
-    fields.push('annual_yield_rate = ?')
-    values.push(data.annual_yield_rate)
-  }
-  if (data.status !== undefined) {
-    fields.push('status = ?')
-    values.push(data.status)
-  }
-
-  if (fields.length === 0) return
-
-  fields.push('updated_at = ?')
-  values.push(getCurrentString())
-  values.push(assetId)
-
+  const update = AssetDB.update({ id: assetId, ...data } as Asset)
+  
   await db.run(
-    `UPDATE assets SET ${fields.join(', ')} WHERE id = ?`,
-    values
+    update.statement,
+    update.values
   )
 }
 
@@ -225,17 +176,15 @@ export async function updateAsset(assetId: string, data: Partial<Asset>): Promis
  */
 export async function deleteAsset(assetId: string): Promise<void> {
   const statements: { statement: string; values: any[] }[] = [
-    { statement: 'DELETE FROM assets WHERE id = ?', values: [assetId] },
+    AssetDB.del(assetId),
     { statement: 'DELETE FROM asset_income_records WHERE asset_id = ?', values: [assetId] }
   ]
   await db.executeTransaction(statements)
 }
 
 export async function switchStatusAsset(assetId: string, status: string): Promise<void> {
-  await db.run(
-    "UPDATE assets SET status = ?, updated_at = ? WHERE id = ?",
-    [status, getCurrentString(), assetId]
-  )
+  const update = AssetDB.update({ id: assetId, status } as Asset)
+  await db.run(update.statement, update.values)
 }
 
 /**
@@ -279,8 +228,11 @@ export async function recordAssetIncome(
   remark?: string
 ): Promise<{ statement: string; values: (string | number)[] }> {
   const id = generateId()
-  return {
-    statement: 'INSERT INTO asset_income_records (id, asset_id, income_amount, record_time, remark) VALUES (?, ?, ?, ?, ?)',
-    values: [id, assetId, incomeAmount.toFixed(2), recordTime, remark || '']
-  }
+  return AssetIncomeRecordsDB.insert({
+    id,
+    asset_id: assetId,
+    income_amount: incomeAmount,
+    record_time: recordTime,
+    remark: remark || ''
+  }) as { statement: string; values: (string | number)[] }
 }

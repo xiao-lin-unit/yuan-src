@@ -4,11 +4,14 @@
       {{ fund.name.charAt(0) }}
     </div>
     <div class="fund-name">{{ fund.name }}</div>
-    <div class="fund-balance">{{ formatCurrency(fund.balance) }}</div>
+    <div class="fund-balance">{{ Amount.formatCurrency(fund.balance) }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
+
+import { Amount } from '../../../utils/number'
+
 const props = defineProps({
   fund: {
     type: Object,
@@ -17,10 +20,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['click'])
-
-const formatCurrency = (value: number) => {
-  return '¥' + value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
 
 const handleClick = () => {
   emit('click', props.fund.id)

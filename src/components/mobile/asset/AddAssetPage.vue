@@ -101,7 +101,6 @@ import { assetTypes, periodTypes, calculationTypes } from '../../../utils/dictio
 import { addAsset as addAssetService } from '../../../services/asset/assetService'
 import { getNonCreditCardAccounts } from '../../../services/account/accountService'
 import { Account } from '../../../types/account/account'
-import { formatDate } from '../../../utils/timezone'
 
 
 
@@ -213,11 +212,11 @@ const addAsset = async () => {
     await addAssetService({
       type: assetForm.value.type,
       name: assetForm.value.name,
-      amount: Number(assetForm.value.amount.toFixed(2)),
+      amount: assetForm.value.amount,
       account_id: assetForm.value.account_id,
       calculation_type: assetForm.value.calculation_type as '无' | '按金额计算' | '按年收益率计算',
-      income_amount: isNoCalc ? 0 : Number(assetForm.value.income_amount.toFixed(2)),
-      annual_yield_rate: isNoCalc ? 0 : Number((assetForm.value.annual_yield_rate / 100).toFixed(4)),
+      income_amount: isNoCalc ? 0 : assetForm.value.income_amount,
+      annual_yield_rate: isNoCalc ? 0 : assetForm.value.annual_yield_rate / 100,
       period: isNoCalc ? undefined : assetForm.value.period,
       period_count: isNoCalc ? 0 : assetForm.value.period_count,
       income_date: isNoCalc ? undefined : incomeDate

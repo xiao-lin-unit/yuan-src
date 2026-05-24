@@ -9,6 +9,29 @@ import initSqlJs from 'sql.js'
 import { Capacitor } from '@capacitor/core'
 import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } from '@capacitor-community/sqlite'
 import { MIGRATIONS, compareVersions, getLatestVersion } from './version'
+import accounts from './tables/accounts'
+import accountTransactions from './tables/account_transactions'
+import assetIncomeRecords from './tables/asset_income_records'
+import assetMonthlySnapshots from './tables/asset_monthly_snapshots'
+import assets from './tables/assets'
+import categories from './tables/categories'
+import financialGoals from './tables/financial_goals'
+import financialHealth from './tables/financial_health'
+import fundHoldings from './tables/fund_holdings'
+import fundTransactions from './tables/fund_transactions'
+import funds from './tables/funds'
+import incomeExpenseRecords from './tables/income_expense_records'
+import knowledgeFavorite from './tables/knowledge_favorite'
+import knowledgeReadHistory from './tables/knowledge_read_history'
+import liabilities from './tables/liabilities'
+import pendingRepayments from './tables/pending_repayments'
+import repayments from './tables/repayments'
+import sandboxHistory from './tables/sandbox_history'
+import sandboxResult from './tables/sandbox_result'
+import stockHoldings from './tables/stock_holdings'
+import stockTransactions from './tables/stock_transactions'
+import stocks from './tables/stocks'
+
 
 
 
@@ -285,6 +308,9 @@ class DatabaseManager {
   async run(sql, params = []) {
     const db = await this.getDB()
 
+    // 将 undefined 统一转换为 null，避免 SQLite 绑定错误
+    params = (params || []).map(v => v === undefined ? null : v)
+
     if (PERFORMANCE_CONFIG.DEBUG) {
       console.log('Executing SQL:', sql, 'with params:', params)
     }
@@ -355,7 +381,9 @@ class DatabaseManager {
         try {
           for (const item of statements) {
             const sql = item.statement || item.sql
-            const params = item.values || item.params || []
+            const rawParams = item.values || item.params || []
+            // 将 undefined 统一转换为 null，避免 SQLite 绑定错误
+            const params = rawParams.map(v => v === undefined ? null : v)
             const stmt = db.prepare(sql)
             stmt.run(params)
             stmt.free()
@@ -428,431 +456,30 @@ class DatabaseManager {
    * 获取建表语句
    */
   getCreateStatements() {
-    return [
-      // 创建账户表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS accounts (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL UNIQUE,
-            type TEXT NOT NULL,
-            balance REAL DEFAULT 0,
-            used_limit REAL DEFAULT 0,
-            total_limit REAL DEFAULT 0,
-            is_liquid INTEGER DEFAULT 1,
-            status TEXT DEFAULT '启用',
-            asset_id TEXT,
-            remark TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-          )
-        `
-      },
-      // 创建收支记录表（记录用户手动录入的收入和支出）
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS income_expense_records (
-            id TEXT PRIMARY KEY,
-            type TEXT NOT NULL,
-            sub_type TEXT,
-            amount REAL NOT NULL,
-            account_id TEXT,
-            related_id TEXT,
-            balance_after REAL NOT NULL,
-            remark TEXT,
-            status TEXT DEFAULT '正常',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (account_id) REFERENCES accounts(id)
-          )
-        `
-      },
-      // 创建账户交易流水表（记录账户余额变动，包括转账和现金操作）
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS account_transactions (
-            id TEXT PRIMARY KEY,
-            account_id TEXT NOT NULL,
-            type TEXT NOT NULL,
-            amount REAL NOT NULL,
-            balance_after REAL NOT NULL,
-            description TEXT,
-            transaction_time TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (account_id) REFERENCES accounts(id)
-          )
-        `
-      },
-      // 创建资产表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS assets (
-            id TEXT PRIMARY KEY,
-            type TEXT NOT NULL,
-            name TEXT NOT NULL,
-            amount REAL DEFAULT 0,
-            account_id TEXT,
-            period TEXT,
-            period_count INTEGER DEFAULT 0,
-            income_date TEXT,
-            next_income_date TEXT,
-            calculation_type TEXT,
-            income_amount REAL DEFAULT 0,
-            annual_yield_rate REAL DEFAULT 0,
-            status TEXT DEFAULT '开启',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (account_id) REFERENCES accounts(id)
-          )
-        `
-      },
-      // 创建股票表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS stocks (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            code TEXT,
-            quantity INTEGER DEFAULT 0,
-            current_price REAL DEFAULT 0,
-            cost_price REAL DEFAULT 0,
-            confirmed_profit REAL DEFAULT 0,
-            first_buy_date TEXT,
-            account_id TEXT,
-            status TEXT DEFAULT '开启',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (account_id) REFERENCES accounts(id)
-          )
-        `
-      },
-      // 创建股票持有记录表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS stock_holdings (
-            id TEXT PRIMARY KEY,
-            stock_id TEXT NOT NULL,
-            price REAL NOT NULL,
-            quantity INTEGER NOT NULL,
-            remaining_quantity INTEGER NOT NULL,
-            sell_status TEXT DEFAULT '未卖出',
-            fee REAL DEFAULT 0,
-            transaction_time TEXT NOT NULL,
-            account_id TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (stock_id) REFERENCES stocks(id),
-            FOREIGN KEY (account_id) REFERENCES accounts(id)
-          )
-        `
-      },
-      // 创建股票交易记录表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS stock_transactions (
-            id TEXT PRIMARY KEY,
-            stock_id TEXT NOT NULL,
-            price REAL NOT NULL,
-            quantity INTEGER NOT NULL,
-            type TEXT NOT NULL,
-            hold_ids TEXT,
-            fee REAL DEFAULT 0,
-            transaction_time TEXT NOT NULL,
-            account_id TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (stock_id) REFERENCES stocks(id),
-            FOREIGN KEY (account_id) REFERENCES accounts(id)
-          )
-        `
-      },
-      // 创建基金表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS funds (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            code TEXT,
-            shares REAL DEFAULT 0,
-            current_nav REAL DEFAULT 0,
-            cost_nav REAL DEFAULT 0,
-            confirmed_profit REAL DEFAULT 0,
-            total_fee REAL DEFAULT 0,
-            first_buy_date TEXT,
-            has_lock INTEGER DEFAULT 0,
-            lock_period INTEGER DEFAULT 0,
-            account_id TEXT,
-            status TEXT DEFAULT '开启',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (account_id) REFERENCES accounts(id)
-          )
-        `
-      },
-      // 创建基金持有记录表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS fund_holdings (
-            id TEXT PRIMARY KEY,
-            fund_id TEXT NOT NULL,
-            nav REAL NOT NULL,
-            shares REAL NOT NULL,
-            remaining_shares REAL NOT NULL,
-            sell_status TEXT DEFAULT '未卖出',
-            fee REAL DEFAULT 0,
-            lock_period INTEGER DEFAULT 0,
-            lock_end_date TEXT,
-            transaction_time TEXT NOT NULL,
-            account_id TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (fund_id) REFERENCES funds(id),
-            FOREIGN KEY (account_id) REFERENCES accounts(id)
-          )
-        `
-      },
-      // 创建基金交易记录表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS fund_transactions (
-            id TEXT PRIMARY KEY,
-            fund_id TEXT NOT NULL,
-            transaction_nav REAL NOT NULL,
-            shares REAL NOT NULL,
-            type TEXT NOT NULL,
-            hold_ids TEXT,
-            fee REAL DEFAULT 0,
-            transaction_time TEXT NOT NULL,
-            account_id TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (fund_id) REFERENCES funds(id),
-            FOREIGN KEY (account_id) REFERENCES accounts(id)
-          )
-        `
-      },
-      // 创建负债表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS liabilities (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            type TEXT NOT NULL,
-            principal REAL NOT NULL,
-            remaining_principal REAL NOT NULL,
-            remaining_total_interest REAL DEFAULT 0,
-            is_interest INTEGER DEFAULT 1,
-            interest_rate REAL DEFAULT 0,
-            start_date TEXT NOT NULL,
-            repayment_method TEXT NOT NULL,
-            repayment_day INTEGER,
-            period INTEGER,
-            account_id TEXT,
-            remark TEXT,
-            status TEXT DEFAULT '未结清',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (account_id) REFERENCES accounts(id)
-          )
-        `
-      },
-      // 创建还款记录表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS repayments (
-            id TEXT PRIMARY KEY,
-            liability_id TEXT NOT NULL,
-            period_number INTEGER,
-            amount REAL NOT NULL,
-            principal_amount REAL DEFAULT 0,
-            interest_amount REAL DEFAULT 0,
-            type TEXT NOT NULL,
-            remark TEXT,
-            repayment_time TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (liability_id) REFERENCES liabilities(id)
-          )
-        `
-      },
-      // 创建待还记录表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS pending_repayments (
-            id TEXT PRIMARY KEY,
-            liability_id TEXT NOT NULL,
-            period_number INTEGER NOT NULL,
-            due_date TEXT NOT NULL,
-            principal_amount REAL NOT NULL,
-            interest_amount REAL NOT NULL,
-            total_amount REAL NOT NULL,
-            status TEXT DEFAULT '未还',
-            paid_date TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (liability_id) REFERENCES liabilities(id)
-          )
-        `
-      },
-      // 创建财务目标表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS financial_goals (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            type TEXT NOT NULL,
-            target_amount REAL NOT NULL,
-            monthly_amount REAL NOT NULL,
-            period INTEGER NOT NULL,
-            account_id TEXT,
-            status TEXT DEFAULT '未开始',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (account_id) REFERENCES accounts(id)
-          )
-        `
-      },
-      // 创建财务健康报告表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS financial_health (
-            id TEXT PRIMARY KEY,
-            liabilities_income_ratio REAL,
-            emergency_fund_ratio REAL,
-            asset_liability_ratio REAL,
-            savings_rate REAL,
-            net_asset_growth REAL,
-            total_score INTEGER,
-            report_date TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-          )
-        `
-      },
-      // 创建分类表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS categories (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            icon TEXT,
-            iconText TEXT,
-            type TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-          )
-        `
-      },
-      // 创建普通资产收益记录表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS asset_income_records (
-            id TEXT PRIMARY KEY,
-            asset_id TEXT NOT NULL,
-            income_amount REAL NOT NULL,
-            record_time TEXT NOT NULL,
-            remark TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (asset_id) REFERENCES assets(id)
-          )
-        `
-      },
-      // 创建月度资产记录表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS asset_monthly_snapshots (
-            id TEXT PRIMARY KEY,
-            year INTEGER NOT NULL,
-            month INTEGER NOT NULL,
-            total_assets REAL DEFAULT 0,
-            total_liabilities REAL DEFAULT 0,
-            net_worth REAL DEFAULT 0,
-            confirmed_profit_stocks REAL DEFAULT 0,
-            confirmed_profit_funds REAL DEFAULT 0,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(year, month)
-          )
-        `
-      },
-      // 沙盘推演历史表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS sandbox_history (
-            id TEXT PRIMARY KEY,
-            scene_type INTEGER NOT NULL,
-            scene_name TEXT NOT NULL,
-            user_title TEXT,
-            simulate_time TEXT NOT NULL,
-            params TEXT NOT NULL,
-            result_desc TEXT,
-            created_at TEXT NOT NULL,
-            is_deleted INTEGER DEFAULT 0 NOT NULL,
-            remark TEXT
-          )
-        `
-      },
-      // 沙盘推演结果表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS sandbox_result (
-            id TEXT PRIMARY KEY NOT NULL,
-            history_id TEXT NOT NULL,
-            net_assets REAL,
-            net_assets_change TEXT,
-            cash_flow_monthly REAL,
-            cash_flow_change TEXT,
-            debt_pressure_level INTEGER,
-            debt_pressure_desc TEXT,
-            survival_months INTEGER,
-            interest_save REAL,
-            monthly_payment_change REAL,
-            total_interest_change REAL,
-            chart_x TEXT NOT NULL,
-            chart_net_assets TEXT NOT NULL,
-            chart_cash_flow TEXT NOT NULL,
-            chart_debt TEXT NOT NULL,
-            conclusion TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY (history_id) REFERENCES sandbox_history(id)
-          )
-        `
-      },
-      // 知识收藏表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS knowledge_favorite (
-            article_id TEXT PRIMARY KEY,
-            create_time TEXT NOT NULL
-          )
-        `
-      },
-      // 阅读历史表
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS knowledge_read_history (
-            article_id TEXT PRIMARY KEY,
-            read_time TEXT NOT NULL,
-            is_read INTEGER DEFAULT 1
-          )
-        `
-      },
-      // 创建索引（性能优化）
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_accounts_type ON accounts(type)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_accounts_is_liquid ON accounts(is_liquid)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_income_expense_records_account_id ON income_expense_records(account_id)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_account_transactions_account_id ON account_transactions(account_id)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_income_expense_records_created_at ON income_expense_records(created_at)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_assets_account_id ON assets(account_id)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_stocks_account_id ON stocks(account_id)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_funds_account_id ON funds(account_id)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_liabilities_account_id ON liabilities(account_id)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_liabilities_status ON liabilities(status)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_repayments_liability_id ON repayments(liability_id)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_repayments_repayment_time ON repayments(repayment_time)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_pending_repayments_liability_id ON pending_repayments(liability_id)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_pending_repayments_due_date ON pending_repayments(due_date)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_financial_goals_account_id ON financial_goals(account_id)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_financial_goals_status ON financial_goals(status)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_categories_type ON categories(type)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_asset_income_records_asset_id ON asset_income_records(asset_id)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_asset_monthly_snapshots_year_month ON asset_monthly_snapshots(year, month)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_sandbox_history_scene_type ON sandbox_history(scene_type)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_sandbox_history_is_deleted ON sandbox_history(is_deleted)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_sandbox_result_history_id ON sandbox_result(history_id)' },
-      { sql: 'CREATE INDEX IF NOT EXISTS idx_knowledge_read_history_read_time ON knowledge_read_history(read_time)' }
-    ]
+    const statements = [];
+    statements.push(...(accounts.createTable()))
+    statements.push(...(accountTransactions.createTable()))
+    statements.push(...(assetIncomeRecords.createTable()))
+    statements.push(...(assetMonthlySnapshots.createTable()))
+    statements.push(...(assets.createTable()))
+    statements.push(...(categories.createTable()))
+    statements.push(...(financialGoals.createTable()))
+    statements.push(...(financialHealth.createTable()))
+    statements.push(...(fundHoldings.createTable()))
+    statements.push(...(fundTransactions.createTable()))
+    statements.push(...(funds.createTable()))
+    statements.push(...(incomeExpenseRecords.createTable()))
+    statements.push(...(knowledgeFavorite.createTable()))
+    statements.push(...(knowledgeReadHistory.createTable()))
+    statements.push(...(liabilities.createTable()))
+    statements.push(...(pendingRepayments.createTable()))
+    statements.push(...(repayments.createTable()))
+    statements.push(...(sandboxHistory.createTable()))
+    statements.push(...(sandboxResult.createTable()))
+    statements.push(...(stockHoldings.createTable()))
+    statements.push(...(stockTransactions.createTable()))
+    statements.push(...(stocks.createTable()))
+    return statements;
   }
 
   async versionUpdate() {

@@ -158,9 +158,9 @@ const addFund = async () => {
     await addFundService({
       name: fundForm.value.name,
       code: fundForm.value.code,
-      cost_nav: Number((fundForm.value.cost_nav).toFixed(4)),
-      shares: Number((fundForm.value.shares).toFixed(2)),
-      fee: Number((fundForm.value.fee).toFixed(2)),
+      cost_nav: fundForm.value.cost_nav,
+      shares: fundForm.value.shares,
+      fee: fundForm.value.fee,
       has_lock: fundForm.value.has_lock,
       lock_period: fundForm.value.lock_period,
       transaction_time: fundForm.value.transaction_time,

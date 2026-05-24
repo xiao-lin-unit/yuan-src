@@ -23,6 +23,10 @@ export const Amount = {
     return Amount.format(value, 2);
   },
 
+  formatCurrency: (value: number): string => {
+    return '¥' + Amount.format(value, 2)
+  },
+
   yuan2Hao: (value: number): number => {
     return Math.round(value * 10000)
   },

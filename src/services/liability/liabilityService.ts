@@ -7,6 +7,10 @@ import db from '../../database/index.js'
 import { getCurrentDate, getDate, generateId, formatDate, getCurrentString } from '../../utils/timezone.js'
 import type { Liability, Repayment, PendingRepayment, LiabilityInput, RepaymentInput } from '../../types/liability/liability.js'
 import { createDebitTransaction, getAccountById } from '../../services/account/accountService'
+import LiabilitiesDB from '../../database/tables/liabilities.js'
+import RepaymentsDB from '../../database/tables/repayments.js'
+import PendingRepaymentsDB from '../../database/tables/pending_repayments.js'
+
 
 
 /**
@@ -113,28 +117,23 @@ export async function addLiability(liabilityData: LiabilityInput): Promise<void>
 
   // Build liability insert statement
   const statements: { statement: string; values: any[] }[] = [
-    {
-      statement: `INSERT INTO liabilities (id, name, type, principal, remaining_principal, remaining_total_interest, is_interest, interest_rate,
-             start_date, repayment_method, repayment_day, period, account_id, remark, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      values: [
-        id,
-        liabilityData.name,
-        liabilityData.type,
-        liabilityData.principal.toFixed(2),
-        liabilityData.principal.toFixed(2),
-        totalInterest.toFixed(2),
-        liabilityData.is_interest ? 1 : 0,
-        liabilityData.interest_rate.toFixed(4),
-        liabilityData.start_date,
-        liabilityData.repayment_method,
-        liabilityData.repayment_day || null,
-        liabilityData.period || null,
-        liabilityData.account_id,
-        liabilityData.remark || '',
-        '未结清'
-      ]
-    }
+    LiabilitiesDB.insert({
+      id,
+      name: liabilityData.name,
+      type: liabilityData.type,
+      principal: liabilityData.principal,
+      remaining_principal: liabilityData.principal,
+      remaining_total_interest: totalInterest,
+      is_interest: liabilityData.is_interest,
+      interest_rate: Number(liabilityData.interest_rate.toFixed(4)) || 0.00,
+      start_date: liabilityData.start_date,
+      repayment_method: liabilityData.repayment_method,
+      repayment_day: liabilityData.repayment_day,
+      period: liabilityData.period,
+      account_id: liabilityData.account_id,
+      remark: liabilityData.remark,
+      status: '未结清'
+    })
   ]
 
   // Generate first pending repayment statement (if not 随借随还 and has periods)
@@ -246,7 +245,7 @@ export async function deleteLiability(liabilityId: string): Promise<void> {
   const statements: { statement: string; values: any[] }[] = [
     { statement: 'DELETE FROM pending_repayments WHERE liability_id = ?', values: [liabilityId] },
     { statement: 'DELETE FROM repayments WHERE liability_id = ?', values: [liabilityId] },
-    { statement: 'DELETE FROM liabilities WHERE id = ?', values: [liabilityId] }
+    LiabilitiesDB.del(liabilityId)
   ]
   await db.executeTransaction(statements)
 }
@@ -307,20 +306,16 @@ export function generateNextPendingRepaymentStatement(
   periodNumber: number
 ): { statement: string; values: any[] } {
   const pending = generatePendingRepayment(liability, periodNumber)
-  return {
-    statement: `INSERT INTO pending_repayments (id, liability_id, period_number, due_date, principal_amount, interest_amount, total_amount, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    values: [
-      pending.id,
-      pending.liability_id,
-      pending.period_number,
-      pending.due_date,
-      pending.principal_amount.toFixed(2),
-      pending.interest_amount.toFixed(2),
-      pending.total_amount.toFixed(2),
-      '未还'
-    ]
-  }
+  return PendingRepaymentsDB.insert({
+    id: pending.id,
+    liability_id: pending.liability_id,
+    period_number: pending.period_number,
+    due_date: pending.due_date,
+    principal_amount: pending.principal_amount,
+    interest_amount: pending.interest_amount,
+    total_amount: pending.total_amount,
+    status: '未还'
+  })
 }
 
 /**
@@ -355,11 +350,11 @@ export async function makeRepayment(input: RepaymentInput): Promise<void> {
     }
 
     periodNumber = pending.period_number
-    principalAmount = Number(pending.principal_amount.toFixed(2))
-    interestAmount = Number(pending.interest_amount.toFixed(2))
+    principalAmount = pending.principal_amount
+    interestAmount = pending.interest_amount
 
-    const newRemainingPrincipal = Number(liability.remaining_principal.toFixed(2)) - Number(pending.principal_amount.toFixed(2))
-    const newRemainingTotalInterest = Math.max(0, Number(liability.remaining_total_interest.toFixed(2)) - Number(pending.interest_amount.toFixed(2)))
+    const newRemainingPrincipal = liability.remaining_principal - pending.principal_amount
+    const newRemainingTotalInterest = Math.max(0, liability.remaining_total_interest - pending.interest_amount)
     const isSettled = newRemainingPrincipal <= 0
     const newStatus = isSettled ? '已结清' : '未结清'
 
@@ -367,54 +362,52 @@ export async function makeRepayment(input: RepaymentInput): Promise<void> {
       throw new Error('还款后剩余本金不能为负数')
     }
 
-    statements.push({
-      statement: `UPDATE pending_repayments SET status = '已还', paid_date = ? WHERE id = ?`,
-      values: [getCurrentDate().format('YYYY-MM-DD 00:00:00'), pending.id]
-    })
-    statements.push({statement: `UPDATE liabilities SET remaining_principal = ?, remaining_total_interest = ?, status = ?, updated_at = ? WHERE id = ?`,
-      values: [newRemainingPrincipal.toFixed(2), newRemainingTotalInterest.toFixed(2), newStatus, getCurrentString(), input.liabilityId]
-    })
+    statements.push(PendingRepaymentsDB.update({
+      id: pending.id,
+      status: '已还',
+      paid_date: getCurrentDate().format('YYYY-MM-DD 00:00:00')
+    } as PendingRepayment))
+
+    statements.push(LiabilitiesDB.update({
+      id: liability.id,
+      remaining_principal: newRemainingPrincipal,
+      remaining_total_interest: newRemainingTotalInterest,
+      status: newStatus,
+      updated_at: getCurrentDate().format('YYYY-MM-DD 00:00:00')
+    } as Liability))
 
     if (!isSettled) {
       const updatedLiability = { ...liability, remaining_principal: newRemainingPrincipal, remaining_total_interest: newRemainingTotalInterest }
         const nextPending = generatePendingRepayment(updatedLiability, pending.period_number + 1)
-        if (Number(nextPending.total_amount.toFixed(2)) > 0) {
-            statements.push({
-              statement: `INSERT INTO pending_repayments (id, liability_id, period_number, due_date, principal_amount, interest_amount, total_amount, status)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-              values: [
-                    nextPending.id,
-                    nextPending.liability_id,
-                    nextPending.period_number,
-                    nextPending.due_date,
-                    nextPending.principal_amount.toFixed(2),
-                    nextPending.interest_amount.toFixed(2),
-                    nextPending.total_amount.toFixed(2),
-                    '未还'
-                  ]
-          })
+        if (nextPending.total_amount > 0) {
+          statements.push(PendingRepaymentsDB.insert({
+            id: nextPending.id,
+            liability_id: nextPending.liability_id,
+            period_number: nextPending.period_number,
+            due_date: nextPending.due_date,
+            principal_amount: nextPending.principal_amount,
+            interest_amount: nextPending.interest_amount,
+            total_amount: nextPending.total_amount,
+            status: '未还'
+          }))
         }
     }
 
-    statements.push({
-      statement: `INSERT INTO repayments (id, liability_id, period_number, amount, principal_amount, interest_amount, type, remark, repayment_time)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      values: [
-          repaymentId,
-          input.liabilityId,
-          periodNumber,
-          input.amount.toFixed(2),
-          principalAmount.toFixed(2),
-          interestAmount.toFixed(2),
-          input.type,
-          input.remark || '',
-          formatDate(getCurrentDate())
-        ]
-    })
+    statements.push(RepaymentsDB.insert({
+      id: repaymentId,
+      liability_id: input.liabilityId,
+      period_number: periodNumber,
+      amount: input.amount,
+      principal_amount: principalAmount,
+      interest_amount: interestAmount,
+      type: input.type,
+      remark: input.remark || '',
+      repayment_time: getCurrentDate().format('YYYY-MM-DD 00:00:00')
+    } as Repayment))
 
   } else {
     // 提前还款
-    const newRemainingPrincipal = Number((liability.remaining_principal - input.amount).toFixed(2))
+    const newRemainingPrincipal = liability.remaining_principal - input.amount
     if (newRemainingPrincipal < 0) {
       throw new Error('还款金额不能超过剩余本金')
     }
@@ -438,48 +431,44 @@ export async function makeRepayment(input: RepaymentInput): Promise<void> {
       statement: `UPDATE pending_repayments SET status = '作废' WHERE liability_id = ? AND status = '未还'`,
       values: [input.liabilityId]
     })
-    statements.push({
-      statement: `UPDATE liabilities SET remaining_principal = ?, remaining_total_interest = ?, status = ?, updated_at = ? WHERE id = ?`,
-      values: [newRemainingPrincipal.toFixed(2), newTotalInterest.toFixed(2), newStatus, getCurrentString(), input.liabilityId]
-    })
+
+    statements.push(LiabilitiesDB.update({
+      id: liability.id,
+      remaining_principal: newRemainingPrincipal,
+      remaining_total_interest: newTotalInterest,
+      status: newStatus,
+      updated_at: getCurrentString()
+    } as Liability))
     if (!isSettled && liability.repayment_method !== '随借随还' && liability.period) {
         const completedPeriods = await getCompletedPeriods(input.liabilityId)
         const nextPeriod = completedPeriods + 1
         const updatedLiability = { ...liability, remaining_principal: newRemainingPrincipal, remaining_total_interest: newTotalInterest }
         const nextPending = generatePendingRepayment(updatedLiability, nextPeriod)
         if (nextPending.total_amount > 0) {
-          statements.push({
-            statement: `INSERT INTO pending_repayments (id, liability_id, period_number, due_date, principal_amount, interest_amount, total_amount, status)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            values: [
-              nextPending.id,
-              nextPending.liability_id,
-              nextPending.period_number,
-              nextPending.due_date,
-              nextPending.principal_amount.toFixed(2),
-              nextPending.interest_amount.toFixed(2),
-              nextPending.total_amount.toFixed(2),
-              '未还'
-            ]
-          })
+          statements.push(PendingRepaymentsDB.insert({
+            id: nextPending.id,
+            liability_id: nextPending.liability_id,
+            period_number: nextPending.period_number,
+            due_date: nextPending.due_date,
+            principal_amount: nextPending.principal_amount,
+            interest_amount: nextPending.interest_amount,
+            total_amount: nextPending.total_amount,
+            status: '未还'
+          }))
       }
     }
 
-    statements.push({
-      statement: `INSERT INTO repayments (id, liability_id, period_number, amount, principal_amount, interest_amount, type, remark, repayment_time)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      values: [
-          repaymentId,
-          input.liabilityId,
-          periodNumber,
-          input.amount.toFixed(2),
-          principalAmount.toFixed(2),
-          interestAmount.toFixed(2),
-          input.type,
-          input.remark || '',
-          formatDate(getCurrentDate())
-        ]
-    })
+    statements.push(RepaymentsDB.insert({
+      id: repaymentId,
+      liability_id: input.liabilityId,
+      period_number: periodNumber,
+      amount: input.amount,
+      principal_amount: principalAmount,
+      interest_amount: interestAmount,
+      type: input.type,
+      remark: input.remark || '',
+      repayment_time: getCurrentString()
+    } as Repayment))
   }
 
   // 调用账户出账/入账接口，从对应账户扣款

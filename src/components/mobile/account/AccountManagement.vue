@@ -6,15 +6,15 @@
         <span>净资产</span>
         <!-- <el-icon class="eye-icon"><View /></el-icon> -->
       </div>
-      <div class="net-worth-amount">{{ formatCurrency(netWorth) }}</div>
+      <div class="net-worth-amount">{{ Amount.formatCurrency(netWorth) }}</div>
       <div class="assets-liabilities">
         <div class="asset-item">
           <div class="asset-label">总资产</div>
-          <div class="asset-value">{{ formatCurrency(totalAssets) }}</div>
+          <div class="asset-value">{{ Amount.formatCurrency(totalAssets) }}</div>
         </div>
         <div class="asset-item">
           <div class="asset-label">总负债</div>
-          <div class="liability-value">{{ formatCurrency(totalLiabilities) }}</div>
+          <div class="liability-value">{{ Amount.formatCurrency(totalLiabilities) }}</div>
         </div>
       </div>
     </div>
@@ -38,11 +38,11 @@
     <div class="borrow-lend-section">
       <div class="borrow-lend-item">
         <div class="borrow-lend-label">总借入</div>
-        <div class="borrow-lend-value">{{ formatCurrency(totalBorrowed) }}</div>
+        <div class="borrow-lend-value">{{ Amount.formatCurrency(totalBorrowed) }}</div>
       </div>
       <div class="borrow-lend-item">
         <div class="borrow-lend-label">总借出</div>
-        <div class="borrow-lend-value">{{ formatCurrency(totalLent) }}</div>
+        <div class="borrow-lend-value">{{ Amount.formatCurrency(totalLent) }}</div>
       </div>
     </div>
 
@@ -51,7 +51,7 @@
       <div class="section-header" @click="toggleCreditCard">
         <span>信用卡</span>
         <div class="section-header-right">
-          <span class="total-liability">{{ formatCurrency(totalCreditCardAvailable) }}</span>
+          <span class="total-liability">{{ Amount.formatCurrency(totalCreditCardAvailable) }}</span>
           <el-icon class="arrow-icon" :class="{ 'rotated': !isCreditCardExpanded }"><ArrowDown /></el-icon>
         </div>
       </div>
@@ -64,7 +64,7 @@
       <div class="section-header" @click="toggleFund">
         <span>流动资金</span>
         <div class="section-header-right">
-          <span class="total-fund">{{ formatCurrency(totalFunds) }}</span>
+          <span class="total-fund">{{ Amount.formatCurrency(totalFunds) }}</span>
           <el-icon class="arrow-icon" :class="{ 'rotated': !isFundExpanded }"><ArrowDown /></el-icon>
         </div>
       </div>
@@ -76,7 +76,7 @@
       <div class="section-header" @click="toggleOtherFund">
         <span>其他资金</span>
         <div class="section-header-right">
-          <span class="total-fund">{{ formatCurrency(totalOtherFunds) }}</span>
+          <span class="total-fund">{{ Amount.formatCurrency(totalOtherFunds) }}</span>
           <el-icon class="arrow-icon" :class="{ 'rotated': !isOtherFundExpanded }"><ArrowDown /></el-icon>
         </div>
       </div>
@@ -153,7 +153,7 @@ import { ref, onMounted, onActivated, computed } from 'vue'
 import CreditCardItem from './CreditCardItem.vue'
 import FundItem from './FundItem.vue'
 import FloatingActionMenu from '../../common/FloatingActionMenu.vue'
-import { ArrowDown, View, More, Plus, RefreshLeft, DataLine } from '@element-plus/icons-vue'
+import { ArrowDown, More, Plus, RefreshLeft, DataLine } from '@element-plus/icons-vue'
 import { accountTypes, adjustmentTypes } from '../../../utils/dictionaries'
 import { getAccounts, updateAccount as updateAccountService, deleteAccount as deleteAccountService, adjustBalance as adjustBalanceService } from '../../../services/account/accountService'
 import { getAssets } from '../../../services/asset/assetService'
@@ -165,6 +165,7 @@ import type { Asset } from '../../../types/asset/asset'
 import type { Stock } from '../../../types/asset/stock'
 import type { Fund } from '../../../types/asset/fund'
 import type { Liability } from '../../../types/liability/liability'
+import { Amount } from '../../../utils/number'
 
 const emit = defineEmits(['navigate'])
 
@@ -201,18 +202,18 @@ const adjustForm = ref({
 
 // 计算数据
 const totalAssets = computed(() => {
-  const generalAssets = assets.value.reduce((total, asset) => total + Number((asset.amount || 0.00).toFixed(2)), 0.00)
-  const stockAssets = stocks.value.reduce((total, stock) => total + Number((stock.current_price || 0.00).toFixed(2)) * (stock.quantity || 0.00), 0.00)
-  const fundAssets = fundList.value.reduce((total, fund) => total + Number((fund.current_nav || 0.00).toFixed(2)) * (fund.shares || 0.00), 0.00)
+  const generalAssets = assets.value.reduce((total, asset) => total + asset.amount || 0.00, 0.00)
+  const stockAssets = stocks.value.reduce((total, stock) => total + (stock.current_price || 0.00) * (stock.quantity || 0.00), 0.00)
+  const fundAssets = fundList.value.reduce((total, fund) => total + (fund.current_nav || 0.00) * (fund.shares || 0.00), 0.00)
   return generalAssets + stockAssets + fundAssets
 })
 
 const totalLiabilities = computed(() => {
-  return liabilities.value.reduce((total, liability) => total + Number((liability.remaining_principal || 0.00).toFixed(2)), 0.00)
+  return liabilities.value.reduce((total, liability) => total + (liability.remaining_principal || 0.00), 0.00)
 })
 
 const netWorth = computed(() => {
-  return Number(totalAssets.value - totalLiabilities.value).toFixed(2)
+  return totalAssets.value - totalLiabilities.value
 })
 
 const assetsCount = computed(() => {
@@ -236,19 +237,19 @@ const trendPercentage = computed(() => {
 const totalBorrowed = computed(() => {
   return liabilities.value
     .filter(liability => liability.status !== '已结清' && liability.type === '亲友借款')
-    .reduce((total, liability) => total + Number((liability.remaining_principal || 0.00).toFixed(2)), 0.00)
+    .reduce((total, liability) => total + (liability.remaining_principal || 0.00), 0.00)
 })
 
 const totalLent = computed(() => {
   return assets.value
     .filter(asset => asset.type === '亲友借款')
-    .reduce((total, asset) => total + Number((asset.amount || 0.00).toFixed(2)), 0.00)
+    .reduce((total, asset) => total + (asset.amount || 0.00), 0.00)
 })
 
 const totalCreditCardAvailable = computed(() => {
   return accounts.value
     .filter(account => account.type === '信用卡')
-    .reduce((total, card) => total + Number(((card.total_limit || 0.00) - (card.used_limit || 0.00)).toFixed(2)), 0.00)
+    .reduce((total, card) => total + ((card.total_limit || 0.00) - (card.used_limit || 0.00)), 0.00)
 })
 
 // 从accounts中计算信用卡和资金数据
@@ -259,8 +260,8 @@ const creditCards = computed(() => {
     .map(account => ({
       id: account.id,
       name: account.name,
-      used_limit: Number((account.used_limit || 0.00).toFixed(2)),
-      total_limit: Number((account.total_limit || 0.00).toFixed(2))
+      used_limit: account.used_limit || 0.00,
+      total_limit: account.total_limit || 0.00
     }))
 })
 
@@ -271,7 +272,7 @@ const funds = computed(() => {
     .map(account => ({
       id: account.id,
       name: account.name,
-      balance: Number((account.balance || 0.00).toFixed(2))
+      balance: account.balance || 0.00  
     }))
 })
 
@@ -282,17 +283,17 @@ const otherFunds = computed(() => {
     .map(account => ({
       id: account.id,
       name: account.name,
-      balance: Number((account.balance || 0.00).toFixed(2))
+      balance: account.balance || 0.00
     }))
 })
 
 // 计算总资金
 const totalFunds = computed(() => {
-  return funds.value.reduce((total, fund) => total + Number((fund.balance || 0.00).toFixed(2)), 0.00)
+  return funds.value.reduce((total, fund) => total + (fund.balance || 0.00), 0.00)
 })
 
 const totalOtherFunds = computed(() => {
-  return otherFunds.value.reduce((total, fund) => total + Number((fund.balance || 0.00).toFixed(2)), 0.00)
+  return otherFunds.value.reduce((total, fund) => total + (fund.balance || 0.00), 0.00)
 })
 
 // 展开/收起状态
@@ -349,11 +350,6 @@ const actionButtons = [
     action: openDatabaseViewer
   }
 ];
-
-// 格式化货币
-const formatCurrency = (value: number = 0) => {
-  return '¥' + value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
 
 // 加载账户数据
 const loadAccounts = async () => {

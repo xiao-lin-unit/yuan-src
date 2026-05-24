@@ -4,13 +4,13 @@
     <div class="card-info">
       <div class="card-header-row">
         <div class="card-name">{{ card.name }}</div>
-        <div class="card-balance" v-if="card.used_limit || card.used_limit === 0">{{ formatCurrency(card.used_limit) }}</div>
+        <div class="card-balance" v-if="card.used_limit || card.used_limit === 0">{{ Amount.formatCurrency(card.used_limit) }}</div>
       </div>
       <div class="card-progress" v-if="(card.used_limit || card.used_limit === 0) && card.total_limit">
         <div class="progress-bar">
           <div class="progress-fill" :style="{ width: progress + '%' }"></div>
         </div>
-        <div class="card-available">额度: {{ formatCurrency(card.total_limit) }} | 已用: {{ formatCurrency(card.used_limit) }}</div>
+        <div class="card-available">额度: {{ Amount.formatCurrency(card.total_limit) }} | 已用: {{ Amount.formatCurrency(card.used_limit) }}</div>
       </div>
       <div class="card-details" v-if="card.days">
         <span class="card-days">{{ card.days }}</span>
@@ -21,6 +21,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Amount } from '../../../utils/number'
 
 const props = defineProps({
   card: {
@@ -35,10 +36,6 @@ const progress = computed(() => {
 })
 
 const emit = defineEmits(['click'])
-
-const formatCurrency = (value: number) => {
-  return '¥' + value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
 
 const handleClick = () => {
   emit('click', props.card.id)

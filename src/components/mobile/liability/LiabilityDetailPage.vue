@@ -19,16 +19,16 @@
       </div>
       <div class="liability-amount">
         <div class="amount-label">剩余待还(元)</div>
-        <div class="amount-value">¥{{ (liabilityInfo.remaining_principal + liabilityInfo.remaining_total_interest).toFixed(2) }}</div>
+        <div class="amount-value">¥{{ Amount.format(liabilityInfo.remaining_principal + liabilityInfo.remaining_total_interest, 2) }}</div>
       </div>
       <div class="liability-meta">
         <div class="meta-item">
           <div class="meta-label">负债本金</div>
-          <div class="meta-value">¥{{ liabilityInfo.principal.toFixed(2) }}</div>
+          <div class="meta-value">¥{{ Amount.format(liabilityInfo.principal, 2) }}</div>
         </div>
         <div class="meta-item">
           <div class="meta-label">剩余本金</div>
-          <div class="meta-value">¥{{ liabilityInfo.remaining_principal.toFixed(2) }}</div>
+          <div class="meta-value">¥{{ Amount.format(liabilityInfo.remaining_principal, 2) }}</div>
         </div>
         <div class="meta-item" v-if="liabilityInfo.is_interest">
           <div class="meta-label">年化利率</div>
@@ -52,7 +52,7 @@
       <div class="liability-meta">
         <div class="meta-item" v-if="liabilityInfo.is_interest">
           <div class="meta-label">剩余利息</div>
-          <div class="meta-value">¥{{ liabilityInfo.remaining_total_interest.toFixed(2) }}</div>
+          <div class="meta-value">¥{{ Amount.format(liabilityInfo.remaining_total_interest, 2) }}</div>
         </div>
         <div class="meta-item">
           <div class="meta-label">借款日期</div>
@@ -65,7 +65,7 @@
         </div>
         <div class="progress-text">
           已还 {{ ((liabilityInfo.principal - liabilityInfo.remaining_principal) / liabilityInfo.principal * 100).toFixed(1) }}%
-          （¥{{ (liabilityInfo.principal - liabilityInfo.remaining_principal).toFixed(2) }} / ¥{{ liabilityInfo.principal.toFixed(2) }}）
+          （¥{{ Amount.format(liabilityInfo.principal - liabilityInfo.remaining_principal, 2) }} / ¥{{ Amount.format(liabilityInfo.principal) }}）
         </div>
       </div>
     </div>
@@ -83,24 +83,24 @@
               <div v-for="pending in pendingRepayments" :key="pending.id" class="transaction-card">
                 <div class="transaction-header">
                   <div class="transaction-type pending">第{{ pending.period_number }}期</div>
-                  <div class="transaction-date">{{ formatDate(pending.due_date, 'YYYY/MM/DD') }}到期</div>
+                  <div class="transaction-date">{{ formatDate(pending.due_date, 'YYYY-MM-DD') }}到期</div>
                 </div>
                 <div class="transaction-content">
                   <div class="transaction-item">
                     <span class="item-label">应还总额</span>
-                    <span class="item-value">¥{{ (pending.total_amount || 0).toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(pending.total_amount || 0, 2) }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">本金</span>
-                    <span class="item-value">¥{{ (pending.principal_amount || 0).toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(pending.principal_amount || 0, 2) }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">利息</span>
-                    <span class="item-value">¥{{ (pending.interest_amount || 0).toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(pending.interest_amount || 0, 2) }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">到期日</span>
-                    <span class="item-value">{{ formatDate(pending.due_date, 'YYYY/MM/DD') }}</span>
+                    <span class="item-value">{{ formatDate(pending.due_date, 'YYYY-MM-DD') }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">状态</span>
@@ -124,20 +124,20 @@
                   <div class="transaction-type" :class="repayment.type === '提前还款' ? 'early' : 'normal'">
                     {{ repayment.type }}
                   </div>
-                  <div class="transaction-date">{{ formatDate(repayment.repayment_time, 'YYYY/MM/DD') }}</div>
+                  <div class="transaction-date">{{ formatDate(repayment.repayment_time, 'YYYY-MM-DD') }}</div>
                 </div>
                 <div class="transaction-content">
                   <div class="transaction-item">
                     <span class="item-label">还款金额</span>
-                    <span class="item-value">¥{{ (repayment.amount || 0).toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(repayment.amount || 0, 2) }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">还本金</span>
-                    <span class="item-value">¥{{ (repayment.principal_amount || 0).toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(repayment.principal_amount || 0, 2) }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">还利息</span>
-                    <span class="item-value">¥{{ (repayment.interest_amount || 0).toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(repayment.interest_amount || 0, 2) }}</span>
                   </div>
                   <div class="transaction-item" v-if="repayment.remark">
                     <span class="item-label">备注</span>
@@ -194,6 +194,8 @@ import {
 import { repaymentTypes } from '../../../utils/dictionaries';
 import type { Liability, Repayment, PendingRepayment } from '../../../types/liability/liability';
 import { formatDate } from '../../../utils/timezone';
+import { Amount } from '../../../utils/number';
+
 
 const props = defineProps({
   liabilityId: {

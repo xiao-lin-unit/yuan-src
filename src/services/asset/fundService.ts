@@ -18,6 +18,12 @@ import type {
 } from '../../types/asset/fund.js'
 import { calculateTotalCost, calculateFundWeightedNavCostPrice } from '../../utils/calculations.js'
 import { createDebitTransaction, createCreditTransaction } from '../account/accountService.js'
+import FundDB from '../../database/tables/funds.js'
+import FundHoldingDB from '../../database/tables/fund_holdings.js'
+import FundTransactionDB from '../../database/tables/fund_transactions.js'
+import { Amount } from '../../utils/number.js'
+
+
 
 /**
  * Get all funds
@@ -84,63 +90,49 @@ export async function addFund(fundData: FundInput, deductFromAccount: boolean = 
   const lockEndDate = calculateLockEndDate(fundData.transaction_time, fundData.lock_period)
 
   const statements: { statement: string; values: any[] }[] = []
-
+  
   // Create fund record
-  statements.push({
-    statement: `INSERT INTO funds (id, name, code, shares, current_nav, cost_nav, total_fee, first_buy_date, has_lock, lock_period, account_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    values: [
-      fundId,
-      fundData.name,
-      fundData.code,
-      fundData.shares,
-      fundData.cost_nav.toFixed(4),
-      fundData.cost_nav.toFixed(4),
-      fundData.fee.toFixed(2),
-      fundData.transaction_time,
-      fundData.has_lock,
-      fundData.lock_period,
-      fundData.account_id
-    ]
-  })
+  statements.push(FundDB.insert({
+    id: fundId,
+    name: fundData.name,
+    code: fundData.code,
+    shares: fundData.shares,
+    current_nav: fundData.cost_nav,
+    cost_nav: fundData.cost_nav,
+    confirmed_profit: 0.00,
+    total_fee: fundData.fee,
+    first_buy_date: fundData.transaction_time,
+    has_lock: fundData.has_lock,
+    lock_period: fundData.lock_period,
+    account_id: fundData.account_id,
+    status: '开启'
+  }))
 
   const holdingId = generateId()
   const transactionId = generateId()
-
-  // Create fund holding record
-  statements.push({
-    statement: `INSERT INTO fund_holdings (id, fund_id, nav, shares, remaining_shares, fee, lock_period, lock_end_date, transaction_time, account_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    values: [
-      holdingId,
-      fundId,
-      fundData.cost_nav.toFixed(4),
-      fundData.shares,
-      fundData.shares,
-      fundData.fee.toFixed(2),
-      fundData.lock_period,
-      lockEndDate ? formatDate(lockEndDate) : null,
-      fundData.transaction_time,
-      fundData.account_id
-    ]
-  })
-
-  // Create fund transaction record (buy)
-  statements.push({
-    statement: `INSERT INTO fund_transactions (id, fund_id, transaction_nav, shares, type, hold_ids, fee, transaction_time, account_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    values: [
-      transactionId,
-      fundId,
-      fundData.cost_nav.toFixed(4),
-      fundData.shares,
-      '买入',
-      holdingId,
-      fundData.fee.toFixed(2),
-      fundData.transaction_time,
-      fundData.account_id
-    ]
-  })
+  statements.push(FundHoldingDB.insert({
+    id: holdingId,
+    fund_id: fundId,
+    nav: fundData.cost_nav,
+    shares: fundData.shares,
+    remaining_shares: fundData.shares,
+    fee: fundData.fee,
+    lock_period: fundData.lock_period,
+    lock_end_date: lockEndDate ? formatDate(lockEndDate) : null,
+    transaction_time: fundData.transaction_time,
+    account_id: fundData.account_id
+  }))
+  statements.push(FundTransactionDB.insert({
+    id: transactionId,
+    fund_id: fundId,
+    transaction_nav: fundData.cost_nav,
+    shares: fundData.shares,
+    type: '买入',
+    hold_ids: holdingId,
+    fee: fundData.fee,
+    transaction_time: fundData.transaction_time,
+    account_id: fundData.account_id
+  }))
 
   // Deduct from account if requested
   if (deductFromAccount) {
@@ -181,43 +173,38 @@ export async function buyFund(fundId: string, buyData: FundBuyInput): Promise<vo
 
   const statements = [
     // Create fund holding record
-    {
-      statement: `INSERT INTO fund_holdings (id, fund_id, nav, shares, remaining_shares, fee, lock_period, lock_end_date, transaction_time, account_id) 
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      values: [
-        holdingId,
-        fundId,
-        buyData.nav.toFixed(2),
-        buyData.shares,
-        buyData.shares,
-        buyData.fee.toFixed(2),
-        buyData.lock_period,
-        lockEndDate ? formatDate(lockEndDate) : null,
-        buyData.transaction_time,
-        buyData.account_id
-      ]
-    },
-    // Create fund transaction record (buy)
-    {
-      statement: `INSERT INTO fund_transactions (id, fund_id, transaction_nav, shares, type, hold_ids, fee, transaction_time, account_id) 
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      values: [
-        transactionId,
-        fundId,
-        buyData.nav.toFixed(4),
-        buyData.shares,
-        '买入',
-        holdingId,
-        buyData.fee.toFixed(2),
-        buyData.transaction_time,
-        buyData.account_id
-      ]
-    },
-    // Update fund record (reset status to '开启')
-    {
-      statement: `UPDATE funds SET shares = ?, current_nav = ?, cost_nav = ?, total_fee = ?, status = ?, updated_at = ? WHERE id = ?`,
-      values: [newShares, buyData.nav.toFixed(4), newCostNav.toFixed(4), (currentFund.total_fee + buyData.fee).toFixed(2), '开启', getCurrentString(), fundId]
-    },
+    FundHoldingDB.insert({
+      id: holdingId,
+      fund_id: fundId,
+      nav: buyData.nav,
+      shares: buyData.shares,
+      remaining_shares: buyData.shares,
+      fee: buyData.fee,
+      lock_period: buyData.lock_period,
+      lock_end_date: lockEndDate ? formatDate(lockEndDate) : null,
+      transaction_time: buyData.transaction_time,
+      account_id: buyData.account_id
+    }),
+    FundTransactionDB.insert({
+      id: transactionId,
+      fund_id: fundId,
+      transaction_nav: buyData.nav,
+      shares: buyData.shares,
+      type: '买入',
+      hold_ids: holdingId,
+      fee: buyData.fee,
+      transaction_time: buyData.transaction_time,
+      account_id: buyData.account_id
+    }),
+    FundDB.update({
+      id: fundId,
+      shares: newShares,
+      current_nav: buyData.nav,
+      cost_nav: newCostNav,
+      total_fee: currentFund.total_fee + buyData.fee,
+      status: '开启',
+      updated_at: getCurrentString()
+    } as Fund),
     // 使用出账接口返回的SQL语句（已包含账户更新和交易记录）
     ...debitResult.statements
   ]
@@ -279,10 +266,11 @@ export async function sellFund(fundId: string, sellData: FundSellInput): Promise
       newSellStatus = '部分卖出'
     }
 
-    statements.push({
-      statement: 'UPDATE fund_holdings SET remaining_shares = ?, sell_status = ? WHERE id = ?',
-      values: [newRemainingShares, newSellStatus, holding.id]
-    })
+    statements.push(FundHoldingDB.update({
+      id: holding.id,
+      remaining_shares: newRemainingShares,
+      sell_status: newSellStatus
+    } as FundHolding))
 
     soldHoldIds.push(holding.id)
     remainingSharesToSell -= sharesToDeduct
@@ -290,21 +278,17 @@ export async function sellFund(fundId: string, sellData: FundSellInput): Promise
 
   // Create fund transaction record (sell)
   const transactionId = generateId()
-  statements.push({
-    statement: `INSERT INTO fund_transactions (id, fund_id, transaction_nav, shares, type, hold_ids, fee, transaction_time, account_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    values: [
-      transactionId,
-      fundId,
-      sellData.nav.toFixed(4),
-      sellData.shares,
-      '卖出',
-      soldHoldIds.join(','),
-      sellData.fee.toFixed(2),
-      sellData.transaction_time,
-      sellData.account_id
-    ]
-  })
+  statements.push(FundTransactionDB.insert({
+    id: transactionId,
+    fund_id: fundId,
+    transaction_nav: sellData.nav,
+    shares: sellData.shares,
+    type: '卖出',
+    hold_ids: soldHoldIds.join(','),
+    fee: sellData.fee,
+    transaction_time: sellData.transaction_time,
+    account_id: sellData.account_id
+  }))
 
   // Update fund record
   const newShares = fund.shares - sellData.shares
@@ -312,10 +296,14 @@ export async function sellFund(fundId: string, sellData: FundSellInput): Promise
   const newConfirmedProfit = (fund.confirmed_profit || 0) + confirmedProfit
   const isEnded = newShares === 0 ? '结束' : '开启'
 
-  statements.push({
-    statement: `UPDATE funds SET shares = ?, current_nav = ?, confirmed_profit = ?, status = ?, updated_at = ? WHERE id = ?`,
-    values: [newShares, sellData.nav.toFixed(4), newConfirmedProfit.toFixed(2), isEnded, getCurrentString(), fundId]
-  })
+  statements.push(FundDB.update({
+    id: fundId,
+    shares: newShares,
+    current_nav: sellData.nav,
+    confirmed_profit: newConfirmedProfit,
+    status: isEnded,
+    updated_at: getCurrentString()
+  } as Fund))
 
   // Calculate net proceeds
   const netProceeds = (sellData.nav * sellData.shares) - sellData.fee
@@ -330,8 +318,8 @@ export async function sellFund(fundId: string, sellData: FundSellInput): Promise
 
   return {
     soldShares: sellData.shares,
-    confirmedProfit,
-    netProceeds
+    confirmedProfit: Amount.format(confirmedProfit),
+    netProceeds: Amount.format(netProceeds) 
   }
 }
 
@@ -347,20 +335,20 @@ export async function getFundDetail(fundId: string): Promise<FundDetail> {
   const f = fund[0]
 
   // Calculate derived values
-  const costAmount = Number((f.cost_nav * f.shares).toFixed(2))
-  const currentAmount = Number((f.current_nav * f.shares).toFixed(2))
+  const costAmount = f.cost_nav * f.shares
+  const currentAmount = f.current_nav * f.shares
   const holdReturn = currentAmount - costAmount
-  const confirmedReturn = Number((f.confirmed_profit || 0).toFixed(2))
-  const totalReturn = Number((holdReturn + confirmedReturn).toFixed(2))
+  const confirmedReturn = f.confirmed_profit || 0
+  const totalReturn = holdReturn + confirmedReturn
 
   return {
     id: f.id,
     name: f.name,
     code: f.code,
     costAmount,
-    costFee: Number((f.cost_fee || 0).toFixed(2)),
-    costNav: Number(f.cost_nav.toFixed(4)),
-    currentNav: Number(f.current_nav.toFixed(4)),
+    costFee: f.cost_fee || 0,
+    costNav: f.cost_nav,
+    currentNav: f.current_nav,
     shares:f.shares,
     confirmedReturn,
     holdReturn,
@@ -401,9 +389,15 @@ export async function updateFundNav(fundId: string, newNav: number): Promise<voi
     throw new Error('净值必须大于0')
   }
 
+  const statement = FundDB.update({
+    id: fundId,
+    current_nav: newNav,
+    updated_at: getCurrentString()
+  } as Fund)
+
   await db.run(
-    'UPDATE funds SET current_nav = ?, updated_at = ? WHERE id = ?',
-    [newNav.toFixed(4), getCurrentString(), fundId]
+    statement.statement,
+    statement.values
   )
 }
 
@@ -434,10 +428,7 @@ export async function deleteFund(fundId: string): Promise<void> {
       statement: 'DELETE FROM fund_holdings WHERE fund_id = ?',
       values: [fundId]
     },
-    {
-      statement: 'DELETE FROM funds WHERE id = ?',
-      values: [fundId]
-    }
+    FundDB.del(fundId)
   ]
 
   await db.executeTransaction(statements)

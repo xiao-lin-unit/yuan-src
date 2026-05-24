@@ -2,7 +2,7 @@
   <div class="daily-income">
     <div class="date-header">
       <span class="date">{{ date }}</span>
-      <span class="total-income">收: ¥{{ totalIncome.toFixed(2) }}</span>
+      <span class="total-income">收: ¥{{ Amount.format(totalIncome) }}</span>
     </div>
     <div v-if="incomes.length > 0" class="income-list">
       <div v-for="(income, index) in incomes" :key="index" class="income-item">
@@ -11,7 +11,7 @@
           <div v-if="income.remark" class="income-note">{{ income.remark }}</div>
         </div>
         <div class="income-details">
-          <span class="income-amount">¥{{ income.amount.toFixed(2) }}</span>
+          <span class="income-amount">¥{{ Amount.format(income.amount) }}</span>
           <span class="income-method">{{ income.account_name }}</span>
         </div>
       </div>
@@ -27,6 +27,7 @@ import { ref, onMounted, watch } from 'vue';
 import { getCurrentDate } from '../../../utils/timezone';
 import db from '../../../database';
 import { incomeCategories } from '../../../data/categories';
+import { Amount } from '../../../utils/number';
 
 const props = defineProps({
   date: {

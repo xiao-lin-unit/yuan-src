@@ -14,12 +14,12 @@
         <el-table-column prop="type" label="目标类型" />
         <el-table-column prop="target_amount" label="目标金额" width="120">
           <template #default="scope">
-            ¥{{ scope.row.target_amount.toFixed(2) }}
+            ¥{{ Amount.format(scope.row.target_amount, 2) }}
           </template>
         </el-table-column>
         <el-table-column prop="monthly_amount" label="每月投入" width="120">
           <template #default="scope">
-            ¥{{ scope.row.monthly_amount.toFixed(2) }}
+            ¥{{ Amount.format(scope.row.monthly_amount, 2) }}
           </template>
         </el-table-column>
         <el-table-column prop="period" label="期限(月)" width="100" />
@@ -135,6 +135,7 @@ import { ref, onMounted, watch } from 'vue'
 import { getCurrentDate } from '../../../utils/timezone'
 import { getAccounts } from '../../../services/account/accountService'
 import { goalTypes, goalStatuses } from '../../../utils/dictionaries'
+import { Amount } from '../../../utils/number'
 
 const accounts = ref<any[]>([])
 const goals = ref([])

@@ -17,6 +17,10 @@ import type {
 } from '../../types/asset/stock.js'
 import { calculateTotalCost, calculateCostPrice, calculateWeightedCostPrice, calculateSellProfit } from '../../utils/calculations.js'
 import { createDebitTransaction, createCreditTransaction } from '../account/accountService.js'
+import StockHoldingDB from '../../database/tables/stock_holdings.js'
+import StockTransactionDB from '../../database/tables/stock_transactions.js'
+import StockDB from '../../database/tables/stocks.js'
+
 
 /**
  * Get all stocks
@@ -74,61 +78,47 @@ export async function addStock(stockData: StockInput, deductFromAccount: boolean
   // Calculate cost price
   const costPrice = calculateCostPrice(stockData.price, stockData.quantity, stockData.fee)
 
-  const statements: { statement: string; values: any[] }[] = []
+  const statements: { statement: string; values: any[] }[] = []  
 
-  // Create stock record
-  statements.push({
-    statement: `INSERT INTO stocks (id, name, code, quantity, current_price, cost_price, first_buy_date, account_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    values: [
-      stockId,
-      stockData.name,
-      stockData.code,
-      stockData.quantity,
-      stockData.price.toFixed(4),
-      costPrice.toFixed(4),
-      stockData.transaction_time,
-      stockData.account_id
-    ]
-  })
+  statements.push(StockDB.insert({
+    id: stockId,
+    name: stockData.name,
+    code: stockData.code,
+    quantity: stockData.quantity,
+    current_price: stockData.price,
+    cost_price: costPrice,
+    confirmed_profit: 0,
+    first_buy_date: stockData.transaction_time,
+    account_id: stockData.account_id,
+    status: '开启'
+  }))
 
   const holdingId = generateId()
   const transactionId = generateId()
 
-  // Create stock holding record
-  statements.push({
-    statement: `INSERT INTO stock_holdings (id, stock_id, price, quantity, remaining_quantity, fee, transaction_time, account_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    values: [
-      holdingId,
-      stockId,
-      stockData.price.toFixed(4),
-      stockData.quantity,
-      stockData.quantity,
-      stockData.fee.toFixed(2),
-      stockData.transaction_time,
-      stockData.account_id
-    ]
-  })
+  statements.push(StockHoldingDB.insert({
+    id: holdingId,
+    stock_id: stockId,
+    price: stockData.price,
+    quantity: stockData.quantity,
+    remaining_quantity: stockData.quantity,
+    fee: stockData.fee,
+    transaction_time: stockData.transaction_time,
+    account_id: stockData.account_id
+  }))
 
-  // Create stock transaction record (buy)
-  statements.push({
-    statement: `INSERT INTO stock_transactions (id, stock_id, price, quantity, type, hold_ids, fee, transaction_time, account_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    values: [
-      transactionId,
-      stockId,
-      stockData.price.toFixed(4),
-      stockData.quantity,
-      '买入',
-      holdingId,
-      stockData.fee.toFixed(2),
-      stockData.transaction_time,
-      stockData.account_id
-    ]
-  })
+  statements.push(StockTransactionDB.insert({
+    id: transactionId,
+    stock_id: stockId,
+    price: stockData.price,
+    quantity: stockData.quantity,
+    type: '买入',
+    hold_ids: holdingId,
+    fee: stockData.fee,
+    transaction_time: stockData.transaction_time,
+    account_id: stockData.account_id
+  }))
 
-  // Deduct from account if requested
   if (deductFromAccount) {
     const debitResult = await createDebitTransaction(stockData.account_id, totalCost, `股票买入：${stockData.name}`)
     statements.push(...debitResult.statements)
@@ -174,42 +164,35 @@ export async function buyStock(stockId: string, buyData: StockBuyInput): Promise
   const transactionId = generateId()
 
   const statements = [
-    // Create stock holding record
-    {
-      statement: `INSERT INTO stock_holdings (id, stock_id, price, quantity, remaining_quantity, fee, transaction_time, account_id) 
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      values: [
-        holdingId,
-        stockId,
-        buyData.price.toFixed(4),
-        buyData.quantity,
-        buyData.quantity,
-        buyData.fee.toFixed(2),
-        buyData.transaction_time,
-        buyData.account_id
-      ]
-    },
-    // Create stock transaction record (buy)
-    {
-      statement: `INSERT INTO stock_transactions (id, stock_id, price, quantity, type, hold_ids, fee, transaction_time, account_id) 
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      values: [
-        transactionId,
-        stockId,
-        buyData.price.toFixed(4),
-        buyData.quantity,
-        '买入',
-        holdingId,
-        buyData.fee.toFixed(2),
-        buyData.transaction_time,
-        buyData.account_id
-      ]
-    },
-    // Update stock record (reset status to '开启')
-    {
-      statement: `UPDATE stocks SET quantity = ?, current_price = ?, cost_price = ?, status = ?, updated_at = ? WHERE id = ?`,
-      values: [newQuantity, buyData.price.toFixed(4), newCostPrice.toFixed(4), '开启', getCurrentString(), stockId]
-    },
+    StockHoldingDB.insert({
+      id: holdingId,
+      stock_id: stockId,
+      price: buyData.price,
+      quantity: buyData.quantity,
+      remaining_quantity: buyData.quantity,
+      fee: buyData.fee,
+      transaction_time: buyData.transaction_time,
+      account_id: buyData.account_id
+    }),
+    StockTransactionDB.insert({
+      id: transactionId,
+      stock_id: stockId,
+      price: buyData.price,
+      quantity: buyData.quantity,
+      type: '买入',
+      hold_ids: holdingId,
+      fee: buyData.fee,
+      transaction_time: buyData.transaction_time,
+      account_id: buyData.account_id
+    }),
+    StockDB.update({
+      id: stockId,
+      quantity: newQuantity,
+      current_price: buyData.price,
+      cost_price: newCostPrice,
+      status: '开启',
+      updated_at: getCurrentString()
+    } as Stock),
     // 使用出账接口返回的SQL语句（已包含账户更新和交易记录）
     ...debitResult.statements
   ]
@@ -221,7 +204,6 @@ export async function buyStock(stockId: string, buyData: StockBuyInput): Promise
  * Sell stock shares using FIFO (First In First Out) method
  */
 export async function sellStock(stockId: string, sellData: StockSellInput): Promise<StockSellResult> {
-  // Check stock total quantity
   const stockData = await db.query('SELECT * FROM stocks WHERE id = ?', [stockId])
   if (stockData.length === 0) {
     throw new Error('股票不存在')
@@ -232,7 +214,6 @@ export async function sellStock(stockId: string, sellData: StockSellInput): Prom
     throw new Error('卖出数量不能大于股票的总数量')
   }
 
-  // Query available holdings (not fully sold)
   const holdings = await db.query(
     'SELECT * FROM stock_holdings WHERE stock_id = ? AND sell_status != ? ORDER BY transaction_time ASC',
     [stockId, '已卖出']
@@ -242,25 +223,21 @@ export async function sellStock(stockId: string, sellData: StockSellInput): Prom
     throw new Error('没有可卖出的持有记录')
   }
 
-  // Calculate total available quantity
   const totalAvailableQuantity = holdings.reduce((total: number, holding: StockHolding) => total + holding.remaining_quantity, 0)
   if (sellData.quantity > totalAvailableQuantity) {
     throw new Error(`卖出数量不能大于可卖出的总数量（当前可卖出数量：${totalAvailableQuantity}）`)
   }
 
-  // Prepare transaction statements
   const statements = []
   let remainingQuantityToSell = sellData.quantity
   const soldHoldIds: string[] = []
 
-  // Deduct from earliest holdings first (FIFO)
   for (const holding of holdings) {
     if (remainingQuantityToSell <= 0) break
 
     const availableQuantity = holding.remaining_quantity
     const quantityToDeduct = Math.min(availableQuantity, remainingQuantityToSell)
 
-    // Update holding record
     const newRemainingQuantity = availableQuantity - quantityToDeduct
     let newSellStatus = holding.sell_status
 
@@ -270,45 +247,43 @@ export async function sellStock(stockId: string, sellData: StockSellInput): Prom
       newSellStatus = '部分卖出'
     }
 
-    statements.push({
-      statement: 'UPDATE stock_holdings SET remaining_quantity = ?, sell_status = ? WHERE id = ?',
-      values: [newRemainingQuantity, newSellStatus, holding.id]
-    })
+    statements.push(StockHoldingDB.update({
+      id: holding.id,
+      remaining_quantity: newRemainingQuantity,
+      sell_status: newSellStatus
+    } as StockHolding))
 
     soldHoldIds.push(holding.id)
     remainingQuantityToSell -= quantityToDeduct
   }
 
-  // Create stock transaction record (sell)
   const transactionId = generateId()
-  statements.push({
-    statement: `INSERT INTO stock_transactions (id, stock_id, price, quantity, type, hold_ids, fee, transaction_time, account_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    values: [
-      transactionId,
-      stockId,
-      sellData.price.toFixed(4),
-      sellData.quantity,
-      '卖出',
-      soldHoldIds.join(','),
-      sellData.fee.toFixed(2),
-      sellData.transaction_time,
-      sellData.account_id
-    ]
-  })
+  statements.push(StockTransactionDB.insert({
+    id: transactionId,
+    stock_id: stockId,
+    price: sellData.price,
+    quantity: sellData.quantity,
+    type: '卖出',
+    hold_ids: soldHoldIds.join(','),
+    fee: sellData.fee,
+    transaction_time: sellData.transaction_time,
+    account_id: sellData.account_id
+  }))
 
-  // Update stock record
   const newQuantity = stock.quantity - sellData.quantity
   const confirmedProfit = calculateSellProfit(sellData.price, stock.cost_price, sellData.quantity, sellData.fee)
   const newConfirmedProfit = (stock.confirmed_profit || 0) + confirmedProfit
   const isEnded = newQuantity === 0 ? '结束' : '开启'
 
-  statements.push({
-    statement: `UPDATE stocks SET quantity = ?, current_price = ?, confirmed_profit = ?, status = ?, updated_at = ? WHERE id = ?`,
-    values: [newQuantity, sellData.price.toFixed(4), newConfirmedProfit.toFixed(2), isEnded, getCurrentString(), stockId]
-  })
+  statements.push(StockDB.update({
+    id: stockId,
+    quantity: newQuantity,
+    current_price: sellData.price,
+    confirmed_profit: newConfirmedProfit,
+    status: isEnded,
+    updated_at: getCurrentString()
+  } as Stock))
 
-  // Calculate net proceeds
   const netProceeds = (sellData.price * sellData.quantity) - sellData.fee
 
   // 使用新的入账接口（已包含账户更新和交易记录）
@@ -392,9 +367,15 @@ export async function updateStockPrice(stockId: string, newPrice: number): Promi
     throw new Error('股价必须大于0')
   }
 
+  const update = StockDB.update({
+    id: stockId,
+    current_price: newPrice,
+    updated_at: getCurrentString()
+  } as Stock)
+
   await db.run(
-    'UPDATE stocks SET current_price = ?, updated_at = ? WHERE id = ?',
-    [newPrice.toFixed(4), getCurrentString(), stockId]
+    update.statement,
+    update.values
   )
 }
 
@@ -425,10 +406,7 @@ export async function deleteStock(stockId: string): Promise<void> {
       statement: 'DELETE FROM stock_holdings WHERE stock_id = ?',
       values: [stockId]
     },
-    {
-      statement: 'DELETE FROM stocks WHERE id = ?',
-      values: [stockId]
-    }
+    StockDB.del(stockId)
   ]
 
   await db.executeTransaction(statements)

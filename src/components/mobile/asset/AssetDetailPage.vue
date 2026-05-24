@@ -19,7 +19,7 @@
       </div>
       <div class="asset-amount">
         <div class="amount-label">资产金额(元)</div>
-        <div class="amount-value">¥{{ assetInfo.amount.toFixed(2) }}</div>
+        <div class="amount-value">¥{{ Amount.format(assetInfo.amount) }}</div>
       </div>
       <div class="asset-meta">
         <div class="meta-item">
@@ -65,12 +65,12 @@
               <div v-for="record in incomeRecords" :key="record.id" class="income-card">
                 <div class="income-header">
                   <div class="income-type">收益</div>
-                  <div class="income-date">{{ formatDate(record.record_time, 'YYYY/MM/DD HH:mm') }}</div>
+                  <div class="income-date">{{ formatDate(record.record_time, 'YYYY-MM-DD HH:mm') }}</div>
                 </div>
                 <div class="income-content">
                   <div class="income-item">
                     <span class="item-label">收益金额</span>
-                    <span class="item-value positive">¥{{ record.income_amount.toFixed(2) }}</span>
+                    <span class="item-value positive">¥{{ Amount.format(record.income_amount) }}</span>
                   </div>
                   <div class="income-item" v-if="record.remark">
                     <span class="item-label">备注</span>
@@ -149,6 +149,7 @@ import { getAssetById, endAsset, pauseAsset, resumeAsset, updateAsset, getAssetI
 import { getAccounts } from '../../../services/account/accountService';
 import { calculationTypes, periodTypes } from '../../../utils/dictionaries';
 import { formatDate } from '../../../utils/timezone';
+import { Amount } from '../../../utils/number';
 
 interface AssetIncomeRecord {
   id: string
@@ -316,8 +317,8 @@ const saveEdit = async () => {
     await updateAsset(props.assetId, {
       calculation_type: editForm.value.calculation_type,
       period: isNoCalc ? '' : editForm.value.period,
-      annual_yield_rate: editForm.value.calculation_type === '按年收益率计算' ? Number((editForm.value.annual_yield_rate / 100).toFixed(4)) : 0.00,
-      income_amount: editForm.value.calculation_type === '按金额计算' ? Number(editForm.value.income_amount.toFixed(2)) : 0.00,
+      annual_yield_rate: editForm.value.calculation_type === '按年收益率计算' ? editForm.value.annual_yield_rate / 100 : 0.00,
+      income_amount: editForm.value.calculation_type === '按金额计算' ? editForm.value.income_amount : 0.00,
       next_income_date: isNoCalc ? '' : undefined
     });
 

@@ -12,6 +12,7 @@ export interface Fund {
   shares: number
   current_nav: number
   cost_nav: number
+  confirmed_profit: number
   total_fee: number
   first_buy_date: dayjs.Dayjs | string
   has_lock: boolean

@@ -1,5 +1,10 @@
 import db from '../../database'
 import { getCurrentDate } from '../../utils/timezone'
+import { Amount } from '../../utils/number'
+import SandboxResultDB from '../../database/tables/sandbox_result'
+import SandboxHistoryDB from '../../database/tables/sandbox_history'  
+import { SandboxHistory, SandboxResult } from '../../types/sandbox/sandbox'
+
 
 export interface SceneDef {
   sceneType: number
@@ -20,39 +25,39 @@ export interface ParamField {
   step?: number
 }
 
-export interface SandboxHistory {
-  id?: string
-  scene_type: number
-  scene_name: string
-  user_title?: string
-  simulate_time: string
-  params: string
-  result_desc?: string
-  created_at: string
-  is_deleted: number
-  remark?: string
-}
+// export interface SandboxHistory {
+//   id?: string
+//   scene_type: number
+//   scene_name: string
+//   user_title?: string
+//   simulate_time: string
+//   params: string
+//   result_desc?: string
+//   created_at: string
+//   is_deleted: number
+//   remark?: string
+// }
 
-export interface SandboxResult {
-  id?: string
-  history_id: string
-  net_assets?: number
-  net_assets_change?: string
-  cash_flow_monthly?: number
-  cash_flow_change?: string
-  debt_pressure_level?: number
-  debt_pressure_desc?: string
-  survival_months?: number
-  interest_save?: number
-  monthly_payment_change?: number
-  total_interest_change?: number
-  chart_x: string
-  chart_net_assets: string
-  chart_cash_flow: string
-  chart_debt: string
-  conclusion: string
-  created_at: string
-}
+// export interface SandboxResult {
+//   id?: string
+//   history_id: string
+//   net_assets?: number
+//   net_assets_change?: string
+//   cash_flow_monthly?: number
+//   cash_flow_change?: string
+//   debt_pressure_level?: number
+//   debt_pressure_desc?: string
+//   survival_months?: number
+//   interest_save?: number
+//   monthly_payment_change?: number
+//   total_interest_change?: number
+//   chart_x: string
+//   chart_net_assets: string
+//   chart_cash_flow: string
+//   chart_debt: string
+//   conclusion: string
+//   created_at: string
+// }
 
 export const SCENES: SceneDef[] = [
   {
@@ -688,10 +693,10 @@ export async function computeSandbox(sceneType: number, params: any): Promise<{ 
     cash_flow_change: cashFlowChange,
     debt_pressure_level: debtPressureLevel,
     debt_pressure_desc: debtPressureDesc,
-    survival_months: survivalMonths,
-    interest_save: interestSave !== null ? Number(interestSave.toFixed(2)) : null,
-    monthly_payment_change: monthlyPaymentChange !== null ? Number(monthlyPaymentChange.toFixed(2)) : null,
-    total_interest_change: totalInterestChange !== null ? Number(totalInterestChange.toFixed(2)) : null,
+    survival_months: survivalMonths !== null ? survivalMonths : undefined,
+    interest_save: interestSave !== null ? interestSave : undefined,
+    monthly_payment_change: monthlyPaymentChange !== null ? monthlyPaymentChange : undefined,
+    total_interest_change: totalInterestChange !== null ? totalInterestChange : undefined,
     chart_x: JSON.stringify(chartX),
     chart_net_assets: JSON.stringify(chartNetAssets.map((v: number) => Number(v.toFixed(2)))),
     chart_cash_flow: JSON.stringify(chartCashFlow.map((v: number) => Number(v.toFixed(2)))),
@@ -706,23 +711,8 @@ export async function computeSandbox(sceneType: number, params: any): Promise<{ 
 export async function saveSandboxSimulation(sceneType: number, params: any): Promise<string | number> {
   const { history, result } = await computeSandbox(sceneType, params)
 
-  const statements = [
-      {
-        statement: `INSERT INTO sandbox_history (id, scene_type, scene_name, simulate_time, params, result_desc, created_at, is_deleted)
-            VALUES (?,?, ?, ?, ?, ?, ?, ?)`,
-        values: [history.id, history.scene_type, history.scene_name, history.simulate_time, history.params, history.result_desc, history.created_at, history.is_deleted]
-      },
-      {
-        statement: `INSERT INTO sandbox_result (id, history_id, net_assets, net_assets_change, cash_flow_monthly, cash_flow_change,
-            debt_pressure_level, debt_pressure_desc, survival_months, interest_save, monthly_payment_change,
-            total_interest_change, chart_x, chart_net_assets, chart_cash_flow, chart_debt, conclusion, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        values: [result.id, result.history_id, result.net_assets, result.net_assets_change, result.cash_flow_monthly, result.cash_flow_change,
-            result.debt_pressure_level, result.debt_pressure_desc, result.survival_months, result.interest_save,
-            result.monthly_payment_change, result.total_interest_change, result.chart_x, result.chart_net_assets,
-            result.chart_cash_flow, result.chart_debt, result.conclusion, result.created_at]
-      }
-    ]
+  const statements = [SandboxResultDB.insert(result),
+  SandboxHistoryDB.insert(history)]
 
   await db.executeTransaction(statements)
   return history.id

@@ -7,11 +7,11 @@
     <div class="budget-details">
       <div class="budget-item">
         <span class="budget-label">剩余:</span>
-        <span class="budget-value">¥{{ remainingBudget.toFixed(2) }}</span>
+        <span class="budget-value">¥{{ Amount.format(remainingBudget) }}</span>
       </div>
       <div class="budget-item">
         <span class="budget-label">总额:</span>
-        <span class="budget-value">¥{{ totalBudget.toFixed(2) }}</span>
+        <span class="budget-value">¥{{ Amount.format(totalBudget) }}</span>
       </div>
     </div>
   </div>
@@ -22,6 +22,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { getCurrentDate } from '../../../utils/timezone';
 import { More } from '@element-plus/icons-vue';
 import db from '../../../database';
+import { Amount } from '../../../utils/number';
 
 // 接收年月参数
 const props = defineProps<{

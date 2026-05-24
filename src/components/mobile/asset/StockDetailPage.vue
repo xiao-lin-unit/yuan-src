@@ -17,16 +17,16 @@
       </div>
       <div class="stock-amount">
         <div class="amount-label">成本金额(元)</div>
-        <div class="amount-value">¥{{ stockInfo.costAmount.toFixed(2) }}</div>
+        <div class="amount-value">¥{{ Amount.format(stockInfo.costAmount, 2) }}</div>
       </div>
       <div class="stock-returns">
         <div class="return-item">
           <div class="return-label">持有成本</div>
-          <div class="return-value">¥{{ stockInfo.costPrice.toFixed(2) }}</div>
+          <div class="return-value">¥{{ Amount.format(stockInfo.costPrice, 2) }}</div>
         </div>
         <div class="return-item">
           <div class="return-label">当前价格</div>
-          <div class="return-value">¥{{ stockInfo.currentPrice.toFixed(2) }}</div>
+          <div class="return-value">¥{{ Amount.format(stockInfo.currentPrice, 2) }}</div>
         </div>
         <div class="return-item">
           <div class="return-label">持有数量</div>
@@ -36,15 +36,15 @@
       <div class="stock-returns">
         <div class="return-item">
           <div class="return-label">确认收益</div>
-          <div class="return-value positive">¥{{ stockInfo.confirmedReturn.toFixed(2) }}</div>
+          <div class="return-value positive">¥{{ Amount.format(stockInfo.confirmedReturn, 2) }}</div>
         </div>
         <div class="return-item">
           <div class="return-label">持有收益</div>
-          <div class="return-value positive">¥{{ stockInfo.holdReturn.toFixed(2) }}</div>
+          <div class="return-value positive">¥{{ Amount.format(stockInfo.holdReturn, 2) }}</div>
         </div>
         <div class="return-item">
           <div class="return-label">总收益</div>
-          <div class="return-value positive">¥{{ stockInfo.totalReturn.toFixed(2) }}</div>
+          <div class="return-value positive">¥{{ Amount.format(stockInfo.totalReturn, 2) }}</div>
         </div>
       </div>
     </div>
@@ -63,12 +63,12 @@
               <div v-for="holding in holdings" :key="holding.id" class="transaction-card">
                 <div class="transaction-header">
                   <div class="transaction-type buy">持有</div>
-                  <div class="transaction-date">{{ formatDate(holding.transaction_time, 'YYYY/MM/DD HH:mm') }}</div>
+                  <div class="transaction-date">{{ formatDate(holding.transaction_time, 'YYYY-MM-DD HH:mm') }}</div>
                 </div>
                 <div class="transaction-content">
                   <div class="transaction-item">
                     <span class="item-label">价格</span>
-                    <span class="item-value">¥{{ (holding.price || 0).toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(holding.price || 0, 2) }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">数量</span>
@@ -80,7 +80,7 @@
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">手续费</span>
-                    <span class="item-value">¥{{ (holding.fee || 0).toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(holding.fee || 0, 2) }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">状态</span>
@@ -102,12 +102,12 @@
               <div v-for="transaction in buyTransactions" :key="transaction.id" class="transaction-card">
                 <div class="transaction-header">
                   <div class="transaction-type buy">买入</div>
-                  <div class="transaction-date">{{ formatDate(transaction.transaction_time, 'YYYY/MM/DD HH:mm') }}</div>
+                  <div class="transaction-date">{{ formatDate(transaction.transaction_time, 'YYYY-MM-DD HH:mm') }}</div>
                 </div>
                 <div class="transaction-content">
                   <div class="transaction-item">
                     <span class="item-label">交易价格</span>
-                    <span class="item-value">¥{{ (transaction.price || 0).toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(transaction.price || 0, 2) }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">交易数量</span>
@@ -115,11 +115,11 @@
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">交易金额</span>
-                    <span class="item-value">¥{{ ((transaction.price || 0) * (transaction.quantity || 0)).toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format((transaction.price || 0) * (transaction.quantity || 0), 2) }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">手续费</span>
-                    <span class="item-value">¥{{ (transaction.fee || 0).toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(transaction.fee || 0, 2) }}</span>
                   </div>
                 </div>
               </div>
@@ -137,12 +137,12 @@
               <div v-for="transaction in sellTransactions" :key="transaction.id" class="transaction-card">
                 <div class="transaction-header">
                   <div class="transaction-type sell">卖出</div>
-                  <div class="transaction-date">{{ formatDate(transaction.transaction_time, 'YYYY/MM/DD HH:mm') }}</div>
+                  <div class="transaction-date">{{ formatDate(transaction.transaction_time, 'YYYY-MM-DD HH:mm') }}</div>
                 </div>
                 <div class="transaction-content">
                   <div class="transaction-item">
                     <span class="item-label">交易价格</span>
-                    <span class="item-value">¥{{ (transaction.price || 0).toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(transaction.price || 0, 2) }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">交易数量</span>
@@ -150,11 +150,11 @@
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">交易金额</span>
-                    <span class="item-value">¥{{ ((transaction.price || 0) * (transaction.quantity || 0)).toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format((transaction.price || 0) * (transaction.quantity || 0), 2) }}</span>
                   </div>
                   <div class="transaction-item">
                     <span class="item-label">手续费</span>
-                    <span class="item-value">¥{{ (transaction.fee || 0).toFixed(2) }}</span>
+                    <span class="item-value">¥{{ Amount.format(transaction.fee || 0, 2) }}</span>
                   </div>
                 </div>
               </div>
@@ -183,6 +183,7 @@ import {
 } from '../../../services/asset/stockService';
 import type { StockHolding, StockTransaction } from '../../../types/asset/stock';
 import { formatDate } from '../../../utils/timezone';
+import { Amount } from '../../../utils/number';
 
 const props = defineProps({
   stockId: {
@@ -327,7 +328,6 @@ const loadStockDetail = async () => {
   try {
     // 使用服务获取股票详情
     const stock = await getStockDetail(props.stockId);
-    console.log('Stock detail loaded:', stock);
 
     stockInfo.value = {
       name: stock.name,

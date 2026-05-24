@@ -1,8 +1,8 @@
 <template>
   <StatOverview
     :background="image"
-    :main="[{ title: '月收入', value: '¥' + income.toFixed(2), color: '#f56c6c' }]"
-    :details="[{ title: '月支出', value: '¥' + expense.toFixed(2), color: '#67c23a' }, { title: '本月结余', value: '¥' + balance.toFixed(2), color: balance < 0 ? '#67c23a' : '#f56c6c' }]"
+    :main="[{ title: '月收入', value: '¥' + Amount.format(income), color: '#f56c6c' }]"
+    :details="[{ title: '月支出', value: '¥' + Amount.format(expense), color: '#67c23a' }, { title: '本月结余', value: '¥' + Amount.format(balance), color: balance < 0 ? '#67c23a' : '#f56c6c' }]"
   />
 </template>
 
@@ -12,6 +12,8 @@ import { getCurrentDate, formatDate } from '../../../utils/timezone';
 import db from '../../../database';
 import StatOverview from '../../../components/common/StatOverview.vue';
 import image from '@/assets/img/r1.jpg';
+import { Amount } from '../../../utils/number';
+
 
 
 // 接收年月参数

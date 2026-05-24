@@ -86,6 +86,7 @@ import VChart from 'vue-echarts';
 import db from '../../../database';
 import Calendar from '../../common/calendar/Calendar.vue';
 import { CategoryService } from '../../../services/categoryService';
+import { Amount } from '../../../utils/number';
 
 // 注册 ECharts 组件
 use([CanvasRenderer, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent]);
@@ -274,12 +275,12 @@ const renderCategoryChart = async (labels: string[], data: number[]) => {
   
   if (hasData) {
     // 有数据时，使用实际数据
-    const totalIncome = data.reduce((sum, val) => Number((sum + val).toFixed(2)), 0.00);
+    const totalIncome = data.reduce((sum, val) => sum + val, 0.00);
     
     chartData = labels.map((label, index) => {
       const translatedName = categoryMap.get(label) || label;
       const value = data[index];
-      const percentage = totalIncome > 0 ? ((value / totalIncome) * 100).toFixed(2) : '0.00';
+      const percentage = totalIncome > 0 ? Amount.format(Amount.round(value / totalIncome) * 100, 2) : '0.00';
       return {
         name: translatedName,
         value: value,

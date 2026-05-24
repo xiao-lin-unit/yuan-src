@@ -52,7 +52,7 @@
         <el-form-item v-if="liabilityForm.is_interest && totalInterestPreview > 0">
           <div class="interest-preview">
             <span class="interest-label">预计总利息：</span>
-            <span class="interest-value">¥{{ totalInterestPreview.toFixed(2) }}</span>
+            <span class="interest-value">¥{{ Amount.format(totalInterestPreview, 2) }}</span>
           </div>
         </el-form-item>
         <el-form-item label="绑定账户" required>
@@ -75,6 +75,7 @@ import PageTemplate from '../../common/PageTemplate.vue'
 import { liabilityTypes, repaymentMethods } from '../../../utils/dictionaries'
 import { addLiability as addLiabilityService, calculateTotalInterest } from '../../../services/liability/liabilityService'
 import { getNonCreditCardAccounts } from '../../../services/account/accountService'
+import { Amount } from '../../../utils/number'
 
 const emit = defineEmits(['navigate'])
 

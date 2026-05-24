@@ -19,8 +19,8 @@
     <StatOverview
       v-if="!showSettled"
       :background="image"
-      :main="[{title: '剩余待还', value: '￥' + totalRemaining.toFixed(2), color: undefined}]"
-      :details="[{title: '剩余本金', value: '￥' + totalPrincipal.toFixed(2), color: undefined}, {title: '负债笔数', value: displayLiabilities.length, color: undefined}]"
+      :main="[{title: '剩余待还', value: '￥' + Amount.format(totalRemaining, 2), color: undefined}]"
+      :details="[{title: '剩余本金', value: '￥' + Amount.format(totalPrincipal, 2), color: undefined}, {title: '负债笔数', value: displayLiabilities.length, color: undefined}]"
     />
 
     <!-- 负债卡片容器 -->
@@ -70,7 +70,7 @@ import type { Liability } from '../../../types/liability/liability';
 import FloatingActionMenu from '../../../components/common/FloatingActionMenu.vue';
 import StatOverview from '../../../components/common/StatOverview.vue';
 import image from '@/assets/img/m1.jpg';
-
+import { Amount } from '../../../utils/number'
 const emit = defineEmits(['navigate']);
 
 const liabilities = ref<Liability[]>([]);

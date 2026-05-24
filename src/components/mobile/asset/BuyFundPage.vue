@@ -121,9 +121,9 @@ const buyFund = async () => {
   
   try {
     await buyFundService(props.fundId, {
-      nav: Number((fundForm.value.cost_nav).toFixed(4)),
-      shares: Number((fundForm.value.shares).toFixed(2)),
-      fee: Number((fundForm.value.fee).toFixed(2)),
+      nav: fundForm.value.cost_nav,
+      shares: fundForm.value.shares,
+      fee: fundForm.value.fee,
       has_lock: fundForm.value.has_lock,
       lock_period: fundForm.value.lock_period,
       transaction_time: fundForm.value.transaction_time,
@@ -132,7 +132,6 @@ const buyFund = async () => {
     
     emit('navigate', 'asset')
   } catch (error: any) {
-    console.error('基金买入失败:', error)
     alert(error.message || '基金买入失败，请重试')
   }
 }

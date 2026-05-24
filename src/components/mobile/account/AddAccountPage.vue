@@ -89,13 +89,12 @@ const addAccount = async () => {
     await addAccountService({
       name: accountForm.value.name,
       type: accountForm.value.type,
-      balance: Number((accountForm.value.balance || 0.00).toFixed(2)),
-      used_limit: Number((accountForm.value.used_limit || 0.00).toFixed(2)),
-      total_limit: Number((accountForm.value.total_limit || 0.00).toFixed(2)),
+      balance: accountForm.value.balance || 0.00,
+      used_limit: accountForm.value.used_limit || 0.00,
+      total_limit: accountForm.value.total_limit || 0.00,
       is_liquid: accountForm.value.is_liquid,
       remark: accountForm.value.remark
     })
-    console.log('Account added successfully, navigating back...')
     emit('navigate', 'account')
   } catch (error: any) {
     console.error('添加账户失败:', error)

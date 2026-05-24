@@ -69,6 +69,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import db from '../../../database'
 import { getCurrentDate } from '../../../utils/timezone'
+import { Amount } from '../../../utils/number'
 
 
 // ============ 图表相关 ============
@@ -224,71 +225,71 @@ const loansToFriends = computed(() => {
 
 // 资产总额
 const totalAssets = computed(() => {
-  return Number((
+  return Amount.format(
     liquidFunds.value +
     socialSecurityAssets.value +
     providentFundAssets.value +
     stockMarketValue.value +
     fundMarketValue.value +
     loansToFriends.value
-  ).toFixed(2))
+  )
 })
 
 // 信用卡已用额度
 const creditCardUsed = computed(() => {
-  return accounts.value
+  return Amount.format(accounts.value
     .filter((a: any) => a.type === '信用卡')
-    .reduce((sum, a) => Number((sum + (a.used_limit || 0.00)).toFixed(2)), 0.00)
+    .reduce((sum, a) => sum + (a.used_limit || 0.00), 0.00))
 })
 
 // 总负债
 const totalLiabilities = computed(() => {
   const liabilityPrincipal = liabilities.value.reduce(
-    (sum, l) => Number((sum + (l.remaining_principal || 0.00)).toFixed(2)), 0.00
+    (sum, l) => sum + (l.remaining_principal || 0.00), 0.00
   )
-  return liabilityPrincipal + creditCardUsed.value
+  return Amount.format(liabilityPrincipal + creditCardUsed.value)
 })
 
 // 净资产
 const netWorth = computed(() => {
-  return Number((totalAssets.value - totalLiabilities.value).toFixed(2))
+  return Amount.format(totalAssets.value - totalLiabilities.value)
 })
 
 // 月度现金流
 const monthlyCashFlow = computed(() => {
-  return Number((monthlyIncome.value - monthlyExpense.value).toFixed(2))
+  return Amount.format(monthlyIncome.value - monthlyExpense.value)
 })
 
 // 月度投资盈亏变化
 const monthlyInvestmentProfit = computed(() => {
   if (!lastMonthSnapshot.value) return 0.00
-  const lastStocks = Number((lastMonthSnapshot.value.confirmedProfitStocks || 0.00).toFixed(2))
-  const lastFunds = Number((lastMonthSnapshot.value.confirmedProfitFunds || 0.00).toFixed(2))
-  const currentStocks = Number((confirmedProfitStocks.value || 0.00).toFixed(2))
-  const currentFunds = Number((confirmedProfitFunds.value || 0.00).toFixed(2))
-  return Number((currentStocks + currentFunds - lastStocks - lastFunds).toFixed(2))
+  const lastStocks = lastMonthSnapshot.value.confirmedProfitStocks || 0.00
+  const lastFunds = lastMonthSnapshot.value.confirmedProfitFunds || 0.00
+  const currentStocks = confirmedProfitStocks.value || 0.00
+  const currentFunds = confirmedProfitFunds.value || 0.00
+  return Amount.format(currentStocks + currentFunds - lastStocks - lastFunds)
 })
 
 // 投资亏损（仅负数部分转为正数）
 const monthlyInvestmentLoss = computed(() => {
-  return Number((monthlyInvestmentProfit.value < 0 ? Math.abs(monthlyInvestmentProfit.value) : 0).toFixed(2))
+  return Amount.format(monthlyInvestmentProfit.value < 0 ? Math.abs(monthlyInvestmentProfit.value) : 0)
 })
 
 // 月度结余
 const monthlyBalance = computed(() => {
-  return Number((monthlyIncome.value - monthlyExpense.value - monthlyInvestmentLoss.value - monthlyRepayment.value).toFixed(2))
+  return Amount.format(monthlyIncome.value - monthlyExpense.value - monthlyInvestmentLoss.value - monthlyRepayment.value)
 })
 
 // 债务收入比
 const debtIncomeRatio = computed(() => {
   if (monthlyIncome.value === 0) return 0.00
-  return Number(((monthlyRepayment.value / monthlyIncome.value) * 100).toFixed(2))
+  return Amount.format((monthlyRepayment.value / monthlyIncome.value) * 100)
 })
 
 // 资产负债率
 const assetLiabilityRatio = computed(() => {
   if (totalAssets.value === 0) return 0.00
-  return Number(((totalLiabilities.value / totalAssets.value) * 100).toFixed(2))
+  return Amount.format((totalLiabilities.value / totalAssets.value) * 100)
 })
 
 // 资产月增长率
@@ -296,7 +297,7 @@ const assetGrowthRate = computed(() => {
   if (!lastMonthSnapshot.value) return 0.00
   const lastAssets = Number((lastMonthSnapshot.value.totalAssets || 0.00).toFixed(2))
   if (lastAssets === 0.00) return 0.00
-  return Number(((totalAssets.value - lastAssets) / lastAssets * 100).toFixed(2))
+  return Amount.format(((totalAssets.value - lastAssets) / lastAssets * 100))
 })
 
 // ============ 评分计算 ============

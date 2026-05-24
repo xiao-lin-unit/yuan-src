@@ -9,7 +9,7 @@
     <div class="card-content">
       <div class="amount-section">
         <div class="remaining-label">剩余待还</div>
-        <div class="remaining-value">¥{{ totalRemaining.toFixed(2) }}</div>
+        <div class="remaining-value">¥{{ Amount.format(totalRemaining, 2) }}</div>
       </div>
     </div>
   </div>
@@ -17,6 +17,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { Amount } from '../../../utils/number';
 
 const props = defineProps({
   title: { type: String, default: '' },

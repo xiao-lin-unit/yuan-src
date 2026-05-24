@@ -12,11 +12,11 @@
       <div class="metric-cards">
         <div class="metric-card">
           <div class="metric-label">净资产</div>
-          <div class="metric-value" :class="netAssetsClass">¥{{ formatNumber(result.net_assets) }}</div>
+          <div class="metric-value" :class="netAssetsClass">¥{{ Amount.format(result.net_assets || 0) }}</div>
         </div>
         <div class="metric-card">
           <div class="metric-label">月现金流</div>
-          <div class="metric-value" :class="cashFlowClass">¥{{ formatNumber(result.cash_flow_monthly) }}</div>
+          <div class="metric-value" :class="cashFlowClass">¥{{ Amount.format(result.cash_flow_monthly || 0) }}</div>
         </div>
         <div class="metric-card" v-if="result.survival_months != null">
           <div class="metric-label">可维持月数</div>
@@ -24,12 +24,12 @@
         </div>
         <div class="metric-card" v-if="result.interest_save != null">
           <div class="metric-label">节省利息</div>
-          <div class="metric-value positive">¥{{ formatNumber(result.interest_save) }}</div>
+          <div class="metric-value positive">¥{{ Amount.format(result.interest_save || 0) }}</div>
         </div>
         <div class="metric-card" v-if="result.monthly_payment_change != null">
           <div class="metric-label">月供变动</div>
           <div class="metric-value" :class="result.monthly_payment_change > 0 ? 'negative' : 'positive'">
-            {{ result.monthly_payment_change > 0 ? '+' : '' }}¥{{ formatNumber(result.monthly_payment_change) }}
+            {{ result.monthly_payment_change > 0 ? '+' : '' }}¥{{ Amount.format(result.monthly_payment_change || 0  ) }}
           </div>
         </div>
         <div class="metric-card">
@@ -102,6 +102,7 @@ import * as echarts from 'echarts'
 import PageHeader from '../../common/PageHeader.vue'
 import { getSandboxHistoryById, getSandboxResultByHistoryId, getSceneByType, ParamField } from '../../../services/sandbox/sandboxService'
 import type { SandboxHistory, SandboxResult } from '../../../services/sandbox/sandboxService'
+import { Amount } from '../../../utils/number'
 
 const props = defineProps<{ historyId: string | number }>()
 const emit = defineEmits(['navigate'])
@@ -117,7 +118,7 @@ const formatValue = (val: any, field: ParamField | undefined) => {
   const type = field?.type
   switch (type) {
     case 'number':
-      return val ? formatNumber(val) : '-'
+      return val ? Amount.format(val) : '-'
     case 'select':
       return val ? field?.options?.find((option: any) => option.value === val)?.label || '-' : '-'
     case 'switch':
