@@ -5,14 +5,25 @@
       <span class="total-expense">支: ¥{{ Amount.format(totalExpense) }}</span>
     </div>
     <div v-if="expenses.length > 0" class="expense-list">
-      <div v-for="(expense, index) in expenses" :key="index" class="expense-item">
+      <div 
+        v-for="(expense, index) in expenses" 
+        :key="index" 
+        class="expense-item"
+        @touchstart="startLongPress(index)"
+        @touchend="cancelLongPress"
+        @touchmove="cancelLongPress"
+        @mousedown="startLongPress(index)"
+        @mouseup="cancelLongPress"
+        @mouseleave="cancelLongPress"
+      >
         <div class="expense-info">
           <div class="expense-category">{{ expense.category }}</div>
           <div v-if="expense.remark" class="expense-note">{{ expense.remark }}</div>
         </div>
         <div class="expense-details">
-          <span class="expense-amount">¥{{ Amount.format(expense.amount, 2) }}</span>
-          <span class="expense-method">{{ expense.account_name }}</span>
+          <span v-if="activeDeleteIndex !== index" class="expense-amount">¥{{ Amount.format(expense.amount, 2) }}</span>
+          <span v-if="activeDeleteIndex !== index" class="expense-method">{{ expense.account_name }}</span>
+          <button v-if="activeDeleteIndex === index" class="delete-btn" @click.stop="confirmDelete(expense)">删除</button>
         </div>
       </div>
     </div>
@@ -28,6 +39,7 @@ import { getCurrentDate } from '../../../utils/timezone';
 import db from '../../../database';
 import { expenseCategories } from '../../../data/categories';
 import { Amount } from '../../../utils/number';
+import { deleteExpenseRecord } from '../../../services/expense/expenseService';
 
 
 const props = defineProps({
@@ -49,8 +61,40 @@ const props = defineProps({
   }
 });
 
-const expenses = ref([]);
+const expenses = ref<any[]>([]);
 const totalExpense = ref(0);
+
+// 长按删除相关
+const activeDeleteIndex = ref<number | null>(null);
+let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+
+const startLongPress = (index: number) => {
+  longPressTimer = setTimeout(() => {
+    activeDeleteIndex.value = index;
+  }, 600);
+};
+
+const cancelLongPress = () => {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+};
+
+const confirmDelete = async (expense: any) => {
+  if (!confirm(`确认删除这笔支出记录？\n${expense.category} ¥${Amount.format(expense.amount, 2)}\n删除后账户余额将自动恢复`)) {
+    activeDeleteIndex.value = null;
+    return;
+  }
+  try {
+    await deleteExpenseRecord(expense.id);
+    activeDeleteIndex.value = null;
+    await loadDailyExpenses();
+  } catch (error: any) {
+    alert(error.message || '删除失败');
+    activeDeleteIndex.value = null;
+  }
+};
 
 // 查询当天的支出记录
 const loadDailyExpenses = async () => {
@@ -85,6 +129,7 @@ const loadDailyExpenses = async () => {
       const categoryName = category ? category.name : transaction.sub_type;
       
       expenseList.push({
+        id: transaction.id,
         category: categoryName,
         amount: Number(transaction.amount.toFixed(2)),
         account_name: transaction.account_name,
@@ -202,6 +247,16 @@ watch(() => [props.year, props.month], () => {
 .expense-method {
   font-size: 12px;
   color: #909399;
+}
+
+.delete-btn {
+  background-color: #f56c6c;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
 }
 
 

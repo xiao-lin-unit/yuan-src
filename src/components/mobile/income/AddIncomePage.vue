@@ -114,10 +114,11 @@ import NumberKeypad from '../../common/NumberKeypad.vue'
 import CategoryItem from '../../common/CategoryItem.vue'
 import type { Category } from '../../../data/categories'
 import { getAccounts } from '../../../services/account/accountService'
-import db from '../../../database'
 import { incomeCategories } from '../../../data/categories'
-import { createCreditTransaction } from '../../../services/account/accountService'
-import { getCurrentString, formatForDB } from '../../../utils/timezone'
+import { getCurrentString } from '../../../utils/timezone'
+import { addIncome } from '../../../services/income/incomeService'
+import { IncomeInput } from '../../../types/income/income'
+
 
 const emit = defineEmits(['navigate'])
 
@@ -402,48 +403,14 @@ const saveIncome = async () => {
   }
 
   try {
-    await db.connect()
-
-    const transactionId = getCurrentDate().valueOf().toString()
-    const relatedId = transactionId
-    
-    // 使用账户入账接口 - 自动处理余额更新
-    const creditResult = await createCreditTransaction(
-      selectedAccountObj.id,
-      Number(amountNumber.toFixed(2)),
-      `收入：${selectedCategory.value?.name || ' '}${remark.value ? '：' + remark.value : ''}`,
-      transactionId,
-      getDate(selectedDateTime.value)
-    )
-    
-    const statements = []
-    
-    // 添加账户入账相关的SQL语句
-    statements.push(...creditResult.statements)
-    
-    // 添加收入流水记录
-    const record = {
-      statement: `INSERT INTO income_expense_records 
-         (id, type, sub_type, amount, account_id, related_id, balance_after, remark, created_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      values: [
-          transactionId,
-          '账户收入',
-          selectedCategoryId.value,
-          Number(amountNumber.toFixed(2)),
-          selectedAccountObj.id,
-          relatedId,
-          creditResult.balanceAfter,
-          remark.value,
-          formatForDB(selectedDateTime.value)
-        ]
-    }
-    statements.push(record)
-
-    // ==============================================
-    // 这里是 Capacitor SQLite 正确事务写法
-    // ==============================================
-    await db.executeTransaction(statements)
+    addIncome({
+      account_id: selectedAccountObj.id,
+      amount: amountNumber,
+      sub_type: selectedCategoryId.value,
+      sub_type_name: selectedCategory.value?.name,
+      remark: remark.value,
+      created_at: selectedDateTime.value
+    } as IncomeInput)
 
     // 执行到这里 = 事务已自动提交 
     allAccounts.value = await getAccounts()

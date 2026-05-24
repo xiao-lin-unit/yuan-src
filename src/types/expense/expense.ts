@@ -38,4 +38,4 @@ export interface ExpenseInput {
   remark?: string
   status: '正常' | '已删除'
   created_at?: string
-}1
+}

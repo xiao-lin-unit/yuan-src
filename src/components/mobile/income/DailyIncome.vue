@@ -5,14 +5,25 @@
       <span class="total-income">收: ¥{{ Amount.format(totalIncome) }}</span>
     </div>
     <div v-if="incomes.length > 0" class="income-list">
-      <div v-for="(income, index) in incomes" :key="index" class="income-item">
+      <div 
+        v-for="(income, index) in incomes" 
+        :key="index" 
+        class="income-item"
+        @touchstart="startLongPress(index)"
+        @touchend="cancelLongPress"
+        @touchmove="cancelLongPress"
+        @mousedown="startLongPress(index)"
+        @mouseup="cancelLongPress"
+        @mouseleave="cancelLongPress"
+      >
         <div class="income-info">
           <div class="income-category">{{ income.category }}</div>
           <div v-if="income.remark" class="income-note">{{ income.remark }}</div>
         </div>
         <div class="income-details">
-          <span class="income-amount">¥{{ Amount.format(income.amount) }}</span>
-          <span class="income-method">{{ income.account_name }}</span>
+          <span v-if="activeDeleteIndex !== index" class="income-amount">¥{{ Amount.format(income.amount) }}</span>
+          <span v-if="activeDeleteIndex !== index" class="income-method">{{ income.account_name }}</span>
+          <button v-if="activeDeleteIndex === index" class="delete-btn" @click.stop="confirmDelete(income)">删除</button>
         </div>
       </div>
     </div>
@@ -28,6 +39,7 @@ import { getCurrentDate } from '../../../utils/timezone';
 import db from '../../../database';
 import { incomeCategories } from '../../../data/categories';
 import { Amount } from '../../../utils/number';
+import { deleteIncomeRecord } from '../../../services/income/incomeService';
 
 const props = defineProps({
   date: {
@@ -48,8 +60,40 @@ const props = defineProps({
   }
 });
 
-const incomes = ref([]);
+const incomes = ref<any[]>([]);
 const totalIncome = ref(0);
+
+// 长按删除相关
+const activeDeleteIndex = ref<number | null>(null);
+let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+
+const startLongPress = (index: number) => {
+  longPressTimer = setTimeout(() => {
+    activeDeleteIndex.value = index;
+  }, 600);
+};
+
+const cancelLongPress = () => {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+};
+
+const confirmDelete = async (income: any) => {
+  if (!confirm(`确认删除这笔收入记录？\n${income.category} ¥${Amount.format(income.amount, 2)}\n删除后账户余额将自动恢复`)) {
+    activeDeleteIndex.value = null;
+    return;
+  }
+  try {
+    await deleteIncomeRecord(income.id);
+    activeDeleteIndex.value = null;
+    await loadDailyIncomes();
+  } catch (error: any) {
+    alert(error.message || '删除失败');
+    activeDeleteIndex.value = null;
+  }
+};
 
 // 查询当天的收入记录
 const loadDailyIncomes = async () => {
@@ -85,6 +129,7 @@ const loadDailyIncomes = async () => {
       const categoryName = category ? category.name : transaction.sub_type;
       
       incomeList.push({
+        id: transaction.id,
         category: categoryName,
         amount: Number(transaction.amount.toFixed(2)),
         account_name: transaction.account_name,
@@ -204,5 +249,15 @@ watch(() => [props.year, props.month], () => {
 .income-method {
   font-size: 12px;
   color: #909399;
+}
+
+.delete-btn {
+  background-color: #f56c6c;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
 }
 </style>
