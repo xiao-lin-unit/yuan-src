@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, provide } from 'vue';
 import { Plus } from '@element-plus/icons-vue';
 import TopNav from '../../common/TopNav.vue';
 import MonthlyStats from './MonthlyStats.vue';
@@ -31,6 +31,12 @@ import FloatingActionMenu from '../../common/FloatingActionMenu.vue';
 import { getCurrentDate } from '../../../utils/timezone';
 
 const emit = defineEmits(['navigate']);
+
+// 支出刷新机制：provide 给子孙组件（DailyExpense 删除后触发，MonthlyStats/WeeklyExperse 监听并重新加载）
+const expenseRefreshKey = ref(0);
+const refreshExpenseStats = () => { expenseRefreshKey.value++ };
+provide('expenseRefreshKey', expenseRefreshKey);
+provide('refreshExpenseStats', refreshExpenseStats);
 
 // 日期选择状态 - 默认为当前年月
 const now = getCurrentDate();

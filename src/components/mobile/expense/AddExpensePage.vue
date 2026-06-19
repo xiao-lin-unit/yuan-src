@@ -411,7 +411,7 @@ const saveExpense = async () => {
   }
 
   try {
-    addExpense({
+    await addExpense({
       account_id: selectedAccountObj.id,
       amount: amountNumber,
       sub_type: selectedCategoryId.value,

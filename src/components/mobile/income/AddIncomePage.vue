@@ -403,7 +403,7 @@ const saveIncome = async () => {
   }
 
   try {
-    addIncome({
+    await addIncome({
       account_id: selectedAccountObj.id,
       amount: amountNumber,
       sub_type: selectedCategoryId.value,

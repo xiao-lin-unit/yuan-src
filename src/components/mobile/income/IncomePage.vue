@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, provide } from 'vue';
 import { Plus } from '@element-plus/icons-vue';
 import { getCurrentDate } from '../../../utils/timezone';
 import TopNav from '../../common/TopNav.vue';
@@ -28,6 +28,12 @@ import IncomeRecords from './IncomeRecords.vue';
 import FloatingActionMenu from '../../common/FloatingActionMenu.vue';
 
 const emit = defineEmits(['navigate']);
+
+// 收入刷新机制：provide 给子孙组件（DailyIncome 删除后触发，MonthlyStats/WeeklyIncome 监听并重新加载）
+const incomeRefreshKey = ref(0);
+const refreshIncomeStats = () => { incomeRefreshKey.value++ };
+provide('incomeRefreshKey', incomeRefreshKey);
+provide('refreshIncomeStats', refreshIncomeStats);
 
 // 日期选择状态 - 默认为当前年月
 const now = getCurrentDate();

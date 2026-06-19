@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch, inject } from 'vue';
 import dayjs from 'dayjs';
 import { getCurrentDate, getDate, formatDate } from '../../../utils/timezone';
 import db from '../../../database';
@@ -137,6 +137,12 @@ const loadWeeklyIncomes = async () => {
     ];
   }
 };
+
+// 监听刷新事件
+const incomeRefreshKey = inject<ReturnType<typeof ref>>('incomeRefreshKey');
+watch(() => incomeRefreshKey?.value, (newVal, oldVal) => {
+  if (newVal !== oldVal) loadWeeklyIncomes();
+});
 
 // 组件挂载时加载数据
 onMounted(() => {

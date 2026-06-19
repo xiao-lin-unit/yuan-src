@@ -7,7 +7,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, inject } from 'vue';
 import { getCurrentDate, formatDate } from '../../../utils/timezone';
 import db from '../../../database';
 import StatOverview from '../../../components/common/StatOverview.vue';
@@ -76,6 +76,12 @@ const loadMonthlyStats = async () => {
     income.value = 0;
   }
 };
+
+// 监听刷新事件
+const expenseRefreshKey = inject<ReturnType<typeof ref>>('expenseRefreshKey');
+watch(() => expenseRefreshKey?.value, (newVal, oldVal) => {
+  if (newVal !== oldVal) loadMonthlyStats();
+});
 
 // 组件挂载时加载数据
 onMounted(() => {

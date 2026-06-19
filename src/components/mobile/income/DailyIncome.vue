@@ -1,5 +1,5 @@
 <template>
-  <div class="daily-income">
+  <div class="daily-income" @click.self="dismissDelete" @touchstart.self="dismissDelete">
     <div class="date-header">
       <span class="date">{{ date }}</span>
       <span class="total-income">收: ¥{{ Amount.format(totalIncome) }}</span>
@@ -9,9 +9,11 @@
         v-for="(income, index) in incomes" 
         :key="index" 
         class="income-item"
+        :class="{ 'delete-active': activeDeleteIndex === index }"
         @touchstart="startLongPress(index)"
         @touchend="cancelLongPress"
         @touchmove="cancelLongPress"
+        @click="handleItemClick(index)"
         @mousedown="startLongPress(index)"
         @mouseup="cancelLongPress"
         @mouseleave="cancelLongPress"
@@ -34,7 +36,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, inject } from 'vue';
 import { getCurrentDate } from '../../../utils/timezone';
 import db from '../../../database';
 import { incomeCategories } from '../../../data/categories';
@@ -63,6 +65,9 @@ const props = defineProps({
 const incomes = ref<any[]>([]);
 const totalIncome = ref(0);
 
+// 获取父级提供的刷新函数
+const refreshIncomeStats = inject<() => void>('refreshIncomeStats');
+
 // 长按删除相关
 const activeDeleteIndex = ref<number | null>(null);
 let longPressTimer: ReturnType<typeof setTimeout> | null = null;
@@ -80,6 +85,20 @@ const cancelLongPress = () => {
   }
 };
 
+// 点击其他行或空白区域时，收起删除按钮
+const dismissDelete = () => {
+  activeDeleteIndex.value = null;
+};
+
+// 点击某一行：如果该行已显示删除按钮则收起，否则不处理
+const handleItemClick = (index: number) => {
+  if (activeDeleteIndex.value === index) {
+    activeDeleteIndex.value = null;
+  } else if (activeDeleteIndex.value !== null) {
+    activeDeleteIndex.value = null;
+  }
+};
+
 const confirmDelete = async (income: any) => {
   if (!confirm(`确认删除这笔收入记录？\n${income.category} ¥${Amount.format(income.amount, 2)}\n删除后账户余额将自动恢复`)) {
     activeDeleteIndex.value = null;
@@ -89,6 +108,8 @@ const confirmDelete = async (income: any) => {
     await deleteIncomeRecord(income.id);
     activeDeleteIndex.value = null;
     await loadDailyIncomes();
+    // 通知 MonthlyStats 和 WeeklyIncome 重新加载
+    refreshIncomeStats?.();
   } catch (error: any) {
     alert(error.message || '删除失败');
     activeDeleteIndex.value = null;

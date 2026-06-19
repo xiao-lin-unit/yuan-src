@@ -1,5 +1,5 @@
 <template>
-  <div class="daily-expense">
+  <div class="daily-expense" @click.self="dismissDelete" @touchstart.self="dismissDelete">
     <div class="date-header">
       <span class="date">{{ date }}</span>
       <span class="total-expense">支: ¥{{ Amount.format(totalExpense) }}</span>
@@ -9,9 +9,11 @@
         v-for="(expense, index) in expenses" 
         :key="index" 
         class="expense-item"
+        :class="{ 'delete-active': activeDeleteIndex === index }"
         @touchstart="startLongPress(index)"
         @touchend="cancelLongPress"
         @touchmove="cancelLongPress"
+        @click="handleItemClick(index)"
         @mousedown="startLongPress(index)"
         @mouseup="cancelLongPress"
         @mouseleave="cancelLongPress"
@@ -34,7 +36,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, defineProps, watch } from 'vue';
+import { ref, onMounted, watch, inject } from 'vue';
 import { getCurrentDate } from '../../../utils/timezone';
 import db from '../../../database';
 import { expenseCategories } from '../../../data/categories';
@@ -64,6 +66,9 @@ const props = defineProps({
 const expenses = ref<any[]>([]);
 const totalExpense = ref(0);
 
+// 获取父级提供的刷新函数
+const refreshExpenseStats = inject<() => void>('refreshExpenseStats');
+
 // 长按删除相关
 const activeDeleteIndex = ref<number | null>(null);
 let longPressTimer: ReturnType<typeof setTimeout> | null = null;
@@ -81,6 +86,21 @@ const cancelLongPress = () => {
   }
 };
 
+// 点击其他行或空白区域时，收起删除按钮
+const dismissDelete = () => {
+  activeDeleteIndex.value = null;
+};
+
+// 点击某一行：如果该行已显示删除按钮则收起，否则不处理（长按才触发删除按钮）
+const handleItemClick = (index: number) => {
+  if (activeDeleteIndex.value === index) {
+    activeDeleteIndex.value = null;
+  } else if (activeDeleteIndex.value !== null) {
+    // 点击了其他行，也收起
+    activeDeleteIndex.value = null;
+  }
+};
+
 const confirmDelete = async (expense: any) => {
   if (!confirm(`确认删除这笔支出记录？\n${expense.category} ¥${Amount.format(expense.amount, 2)}\n删除后账户余额将自动恢复`)) {
     activeDeleteIndex.value = null;
@@ -90,7 +110,8 @@ const confirmDelete = async (expense: any) => {
     await deleteExpenseRecord(expense.id);
     activeDeleteIndex.value = null;
     await loadDailyExpenses();
-    // TODO: 应该将整个支出页面重新加载，否则月统计和周统计不对
+    // 通知 MonthlyStats 和 WeeklyExperse 重新加载
+    refreshExpenseStats?.();
   } catch (error: any) {
     alert(error.message || '删除失败');
     activeDeleteIndex.value = null;
