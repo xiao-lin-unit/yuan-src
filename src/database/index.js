@@ -494,10 +494,10 @@ class DatabaseManager {
     // 2. 读取已记录的数据库版本
     const rows = await this.query('SELECT version FROM db_version WHERE id = 1')
     const currentVersion = rows.length > 0 ? rows[0].version : '0.0.0'
-
+    const latestVersion = getLatestVersion()
     // 3. 筛选需要执行的迁移（版本号大于当前数据库版本）
     const pending = MIGRATIONS.filter(
-      m => compareVersions(m.version, currentVersion) > 0
+      m => compareVersions(m.version, currentVersion) > 0 && compareVersions(m.version, latestVersion) <= 0
     )
 
     if (pending.length === 0) {
@@ -516,7 +516,6 @@ class DatabaseManager {
     }
 
     // 5. 更新版本记录为最新版本
-    const latestVersion = getLatestVersion()
     await this.run(
       `INSERT INTO db_version (id, version) VALUES (1, ?)
        ON CONFLICT(id) DO UPDATE SET version = excluded.version`,

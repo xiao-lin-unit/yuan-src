@@ -90,6 +90,7 @@ const confirmDelete = async (expense: any) => {
     await deleteExpenseRecord(expense.id);
     activeDeleteIndex.value = null;
     await loadDailyExpenses();
+    // TODO: 应该将整个支出页面重新加载，否则月统计和周统计不对
   } catch (error: any) {
     alert(error.message || '删除失败');
     activeDeleteIndex.value = null;

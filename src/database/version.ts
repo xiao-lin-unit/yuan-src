@@ -1,3 +1,4 @@
+declare const __APP_VERSION__: string;
 /**
  * 数据库版本迁移脚本
  *
@@ -22,6 +23,66 @@ interface Migration {
 async function hasColumn(db: any, table: string, column: string): Promise<boolean> {
   const columns = await db.query(`PRAGMA table_info(${table})`)
   return columns.some((c: any) => c.name === column)
+}
+
+/**
+ * 辅助函数：使用 PRAGMA table_info 重建无外键约束版本的表。
+ * 与 sqlite_master.sql 不同，PRAGMA table_info 反映的是当前实际列集合，
+ * 能正确处理通过 ALTER TABLE ADD COLUMN 追加的列，避免列缺失导致 INSERT 失败。
+ * 对于没有外键约束的表直接跳过；每张表独立 try-catch，一张表失败不影响其余表。
+ */
+async function removeForeignKeys(db: any): Promise<void> {
+  const tables = await db.query(
+    `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%_fk_mig_bak' ORDER BY name`
+  )
+  if (!tables || tables.length === 0) return
+
+  for (const table of tables) {
+    const tableName: string = table.name
+    try {
+      // 检查该表是否存在外键约束，没有则跳过
+      const fkList = await db.query(`PRAGMA foreign_key_list(${tableName})`)
+      if (!fkList || fkList.length === 0) continue
+
+      // 用 PRAGMA table_info 获取当前实际列（含 ALTER TABLE ADD COLUMN 追加的列）
+      const colInfo = await db.query(`PRAGMA table_info(${tableName})`)
+      const columnNames: string[] = colInfo.map((c: any) => c.name)
+      const colList = columnNames.join(', ')
+
+      // 在重命名前读取索引 SQL（保留原始表名引用）
+      const idxRows = await db.query(
+        `SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name='${tableName}' AND sql IS NOT NULL`
+      )
+
+      // 用 PRAGMA table_info 重建 CREATE TABLE SQL（不含 FK，含所有当前列）
+      const pkCols: any[] = colInfo.filter((c: any) => c.pk > 0).sort((a: any, b: any) => a.pk - b.pk)
+      const colDefs: string[] = colInfo.map((c: any) => {
+        let def = `"${c.name}" ${c.type || 'TEXT'}`
+        if (pkCols.length === 1 && c.pk === 1) def += ' PRIMARY KEY'
+        if (c.notnull === 1 && c.pk === 0) def += ' NOT NULL'
+        if (c.dflt_value !== null && c.dflt_value !== undefined) def += ` DEFAULT ${c.dflt_value}`
+        return def
+      })
+      if (pkCols.length > 1) {
+        colDefs.push(`PRIMARY KEY (${pkCols.map((c: any) => `"${c.name}"`).join(', ')})`)
+      }
+      const newCreateSql = `CREATE TABLE "${tableName}" (\n  ${colDefs.join(',\n  ')}\n)`
+
+      // 备份 → 重建（无 FK）→ 迁移数据 → 删除备份
+      const tempTable = `${tableName}_fk_mig_bak`
+      await db.run(`ALTER TABLE "${tableName}" RENAME TO "${tempTable}"`)
+      await db.run(newCreateSql)
+      await db.run(`INSERT INTO "${tableName}" (${colList}) SELECT ${colList} FROM "${tempTable}"`)
+      await db.run(`DROP TABLE "${tempTable}"`)
+
+      // 重建原有索引
+      for (const idx of idxRows) {
+        try { await db.run(idx.sql) } catch (_) { /* 索引已存在则跳过 */ }
+      }
+    } catch (e) {
+      console.error(`removeForeignKeys: failed for table "${tableName}":`, e)
+    }
+  }
 }
 
 /**
@@ -185,12 +246,19 @@ export const MIGRATIONS: Migration[] = [
       }
 
     }
-  }
+  },
+  {
+    version: '1.0.5',
+    description: '移除所有表的外键约束（修复版：使用 PRAGMA table_info 重建，避免 sqlite_master 遗漏 ALTER TABLE ADD COLUMN 的列）',
+    migrate: async (db) => {
+      await removeForeignKeys(db)
+    }
+  },
 ]
 
 /** 获取最新版本号 */
 export function getLatestVersion(): string {
-  return MIGRATIONS[MIGRATIONS.length - 1].version
+  return __APP_VERSION__; //MIGRATIONS[MIGRATIONS.length - 1].version
 }
 
 /** 比较语义化版本号，返回 -1 / 0 / 1 */

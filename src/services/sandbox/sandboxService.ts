@@ -711,8 +711,8 @@ export async function computeSandbox(sceneType: number, params: any): Promise<{ 
 export async function saveSandboxSimulation(sceneType: number, params: any): Promise<string | number> {
   const { history, result } = await computeSandbox(sceneType, params)
 
-  const statements = [SandboxResultDB.insert(result),
-  SandboxHistoryDB.insert(history)]
+  const statements = [SandboxHistoryDB.insert(history),
+    SandboxResultDB.insert(result)]
 
   await db.executeTransaction(statements)
   return history.id
