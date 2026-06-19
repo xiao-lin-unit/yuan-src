@@ -149,6 +149,7 @@
 </template>
 
 <script setup lang="ts">
+declare const __BUILD_TYPE__: string
 import { ref, onMounted, onActivated, computed } from 'vue'
 import CreditCardItem from './CreditCardItem.vue'
 import FundItem from './FundItem.vue'
@@ -347,7 +348,8 @@ const actionButtons = [
   {
     text: '数据库查看',
     icon: DataLine,
-    action: openDatabaseViewer
+    action: openDatabaseViewer,
+    show: __BUILD_TYPE__ === 'debug' || import.meta.env.DEV
   }
 ];
 

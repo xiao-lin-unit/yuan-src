@@ -13,6 +13,7 @@ export interface IncomeExpenseRecord {
   balance_after: number
   remark?: string
   status: '正常' | '已删除'
+  is_required?: number
   created_at?: string
 }
 

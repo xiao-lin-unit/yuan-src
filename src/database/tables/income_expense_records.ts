@@ -21,6 +21,7 @@ const createTable = () => {
           balance_after REAL NOT NULL,
           remark TEXT,
           status TEXT DEFAULT '正常',
+          is_required INTEGER DEFAULT 0,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
       `
@@ -33,8 +34,8 @@ const createTable = () => {
 const insert = (record: IncomeExpenseRecord) => {
   return {
     statement: `
-      INSERT INTO income_expense_records (id, type, sub_type, amount, account_id, related_id, balance_after, remark, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO income_expense_records (id, type, sub_type, amount, account_id, related_id, balance_after, remark, status, is_required, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     values: [
       record.id || generateId(),
@@ -46,6 +47,7 @@ const insert = (record: IncomeExpenseRecord) => {
       Amount.format(record.balance_after || 0, 2),
       record.remark,
       record.status || '正常',
+      (record as any).is_required ? 1 : 0,
       formatForDB(record.created_at || getCurrentDate())
     ]
   }

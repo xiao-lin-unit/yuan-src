@@ -1,11 +1,11 @@
 <template>
-  <div v-if="buttons.length > 0" class="floating-action-menu">
+  <div v-if="showButtons.length > 0" class="floating-action-menu">
     <!-- 当只有一个按钮时，直接显示该按钮 -->
-    <div v-if="buttons.length === 1" class="floating-action-button floating-menu-item" @click="buttons[0].action">
+    <div v-if="showButtons.length === 1" class="floating-action-button floating-menu-item" @click="showButtons[0].action">
       <el-icon :size="24" style="color: white;">
-        <component :is="buttons[0].icon" />
+        <component :is="showButtons[0].icon" />
       </el-icon>
-      <span v-if="buttons[0].text">{{ buttons[0].text }}</span>
+      <span v-if="showButtons[0].text">{{ showButtons[0].text }}</span>
     </div>
     
     <!-- 当按钮数量大于1时，显示more按钮和展开菜单 -->
@@ -15,7 +15,7 @@
       </div>
       <div class="floating-menu" v-if="isMenuExpanded">
         <div 
-          v-for="(button, index) in buttons" 
+          v-for="(button, index) in showButtons" 
           :key="index" 
           class="floating-menu-item"
           @click="button.action"
@@ -31,7 +31,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { More } from '@element-plus/icons-vue'
 
 // 定义按钮类型
@@ -39,6 +39,7 @@ interface ActionButton {
   text: string
   icon: any
   action: () => void
+  show?: boolean
 }
 
 // 定义组件props
@@ -47,6 +48,10 @@ const props = defineProps({
     type: Array as () => ActionButton[],
     required: true
   }
+})
+
+const showButtons = computed(() => {
+  return props.buttons.filter(button => !(button.show === false))
 })
 
 // 菜单展开状态

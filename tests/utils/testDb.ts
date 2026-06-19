@@ -44,11 +44,7 @@ export async function resetTestDatabase() {
 }
 
 export async function seedTestData(db: any) {
-  // Insert test categories
-  await db.run(`INSERT INTO categories (id, name, type, icon, iconText) VALUES (?, ?, ?, ?, ?)`,
-    ['cat1', '餐饮', 'expense', 'food', '🍽'])
-  await db.run(`INSERT INTO categories (id, name, type, icon, iconText) VALUES (?, ?, ?, ?, ?)`,
-    ['cat2', '工资', 'income', 'salary', '💰'])
+  // (categories 已废弃数据库表，分类数据来自静态文件 src/data/categories.ts)
 
   // Insert test accounts
   await db.run(`INSERT INTO accounts (id, name, type, balance, used_limit, total_limit, is_liquid, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

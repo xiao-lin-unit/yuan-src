@@ -1,7 +1,8 @@
 {
   "name": "finance-app",
   "private": true,
-  "version": "1.0.5",
+  "version": "1.0.6",
+  "build-type": "debug",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
@@ -13,8 +14,8 @@
     "generate:icons": "node scripts/generate-android-icons.js",
     "cap:open:android": "npx cap open android",
     "test": "npx vitest run --reporter=verbose 2>&1",
-    "build:android:apk:release": "npm run build && npx cap sync && cd android && gradlew assembleRelease",
-    "build:android:apk:debug": "npm run build && npx cap sync && cd android && gradlew assembleDebug"
+    "build:android:apk:release": "vite build && npx cap sync && cd android && gradlew assembleRelease",
+    "build:android:apk:debug": "vite build && npx cap sync && cd android && gradlew assembleDebug"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^6.0.1",

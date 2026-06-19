@@ -1,7 +1,7 @@
 import db from '../../database/index.js'
 import { ExpenseInput } from '../../types/expense/expense.js'
 import { createDebitTransaction, getAccountById } from '../account/accountService.js'
-
+import { CategoryService } from '../categoryService.js'
 import { generateId, getDate, formatForDB, getCurrentDate, getCurrentString } from '../../utils/timezone.js'
 import IncomeExpenseRecordsDB from '../../database/tables/income_expense_records.js'
 import AccountTransactionDB from '../../database/tables/account_transactions.js'
@@ -11,7 +11,11 @@ import AssetDB from '../../database/tables/assets.js'
 export async function addExpense(expense: ExpenseInput) {
   const transactionId = generateId()  
   const relatedId = transactionId
-  
+
+  // 查询分类的是否必须字段
+  const category = expense.sub_type ? await CategoryService.getCategoryById(expense.sub_type) : null
+  const isRequired = category?.required ? 1 : 0
+
   // 使用账户出账接口 - 自动处理余额检查和账户更新
   const debitResult = await createDebitTransaction(
     expense.account_id,
@@ -37,7 +41,8 @@ export async function addExpense(expense: ExpenseInput) {
     balance_after: debitResult.balanceAfter,
     remark: expense.remark,
     created_at: formatForDB(expense.created_at || getCurrentDate()),
-    status: '正常'
+    status: '正常',
+    is_required: isRequired
   }))
 
   // ==============================================

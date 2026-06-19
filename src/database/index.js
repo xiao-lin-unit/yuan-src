@@ -14,7 +14,7 @@ import accountTransactions from './tables/account_transactions'
 import assetIncomeRecords from './tables/asset_income_records'
 import assetMonthlySnapshots from './tables/asset_monthly_snapshots'
 import assets from './tables/assets'
-import categories from './tables/categories'
+// import categories from './tables/categories'
 import financialGoals from './tables/financial_goals'
 import financialHealth from './tables/financial_health'
 import fundHoldings from './tables/fund_holdings'
@@ -462,7 +462,7 @@ class DatabaseManager {
     statements.push(...(assetIncomeRecords.createTable()))
     statements.push(...(assetMonthlySnapshots.createTable()))
     statements.push(...(assets.createTable()))
-    statements.push(...(categories.createTable()))
+    // statements.push(...(categories.createTable()))
     statements.push(...(financialGoals.createTable()))
     statements.push(...(financialHealth.createTable()))
     statements.push(...(fundHoldings.createTable()))
@@ -623,7 +623,7 @@ class DatabaseManager {
    * 清空所有数据（使用事务提高性能）
    */
   async clearAllData() {
-    const tables = ['accounts', 'income_expense_records', 'assets', 'stocks', 'funds', 'liabilities', 'repayments', 'pending_repayments', 'financial_goals', 'categories', 'knowledge_favorite', 'knowledge_read_history']
+    const tables = ['accounts', 'income_expense_records', 'assets', 'stocks', 'funds', 'liabilities', 'repayments', 'pending_repayments', 'financial_goals', 'knowledge_favorite', 'knowledge_read_history']
     
     try {
       // 事务状态

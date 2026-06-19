@@ -14,7 +14,9 @@ export default defineConfig({
     target: 'es2015'
   },
   define: {
-    __APP_VERSION__: JSON.stringify(pkg.version)
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    // 优先读 package.json 的 build-type 字段，也可被 --mode 覆盖
+    __BUILD_TYPE__: JSON.stringify(pkg['build-type'])
   },
   resolve: {
     alias: {

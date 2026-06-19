@@ -40,7 +40,7 @@
       </div>
 
       <!-- 数据表格 -->
-      <div class="data-section" v-if="tableData.length > 0">
+      <div class="data-section" v-if="tableColumns.length > 0">
         <div class="data-header">
           <span class="data-count">共 {{ tableData.length }} 条记录</span>
         </div>
@@ -49,6 +49,7 @@
             <thead>
               <tr>
                 <th v-for="key in tableColumns" :key="key">{{ key }}</th>
+                <th class="action-col">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -56,17 +57,34 @@
                 <td v-for="key in tableColumns" :key="key">
                   {{ formatValue(row[key]) }}
                 </td>
+                <td class="action-col">
+                  <el-button
+                    type="primary"
+                    size="small"
+                    text
+                    @click="openEditDialog(row)"
+                  >编辑</el-button>
+                  <el-button
+                    type="danger"
+                    size="small"
+                    text
+                    @click="deleteRow(row)"
+                  >删除</el-button>
+                </td>
+              </tr>
+              <!-- 空表时仍显示一行提示 -->
+              <tr v-if="tableData.length === 0">
+                <td :colspan="tableColumns.length + 1" style="text-align:center;color:#999;padding:24px;">暂无数据</td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <!-- 空状态 -->
-      <div class="empty-state" v-else-if="!loading">
+      <!-- 空状态（未选表） -->
+      <div class="empty-state" v-else-if="!loading && !selectedTable">
         <el-icon class="empty-icon"><Document /></el-icon>
-        <p>暂无数据</p>
-        <p class="empty-hint">请选择数据表或添加数据</p>
+        <p>请选择数据表</p>
       </div>
 
       <!-- 加载状态 -->
@@ -93,12 +111,38 @@
         </el-button>
       </div>
     </div>
+
+    <!-- 编辑弹窗 -->
+    <el-dialog
+      v-model="editDialogVisible"
+      title="编辑记录"
+      width="90%"
+      :close-on-click-modal="false"
+      class="edit-dialog"
+    >
+      <div class="edit-form">
+        <div class="edit-field" v-for="key in tableColumns" :key="key">
+          <label class="edit-label">{{ key }}</label>
+          <el-input
+            v-model="editForm[key]"
+            :placeholder="key"
+            size="small"
+            :disabled="key === 'id'"
+          />
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveEdit" :loading="saving">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ArrowLeft, Refresh, Document, Loading } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import db from '../../database'
 
 const emit = defineEmits(['navigate'])
@@ -121,25 +165,28 @@ const TABLE_LABELS: Record<string, string> = {
   financial_goals: '财务目标表',
   financial_health: '财务健康表',
   db_version: '数据库版本表',
-  categories: '分类表',
   asset_income_records: '普通资产收益记录表',
   asset_monthly_snapshots: '月度资产记录表',
   knowledge_favorite: '知识收藏表',
   knowledge_read_history: '阅读历史表',
   sandbox_result: '沙盘推演结果表',
   sandbox_history: '沙盘推演历史表',
-
-
 }
 
 // 状态
 const loading = ref(false)
+const saving = ref(false)
 const selectedTable = ref('accounts')
 const tableData = ref<any[]>([])
 const tableColumns = ref<string[]>([])
 const isMemoryMode = ref(false)
 const isDataSaved = ref(false)
 const allTables = ref<{ name: string; label: string }[]>([])
+
+// 编辑弹窗
+const editDialogVisible = ref(false)
+const editForm = ref<Record<string, any>>({})
+const editingRow = ref<any>(null)
 
 // 本地存储大小
 const sqliteStorageSize = ref('0 KB')
@@ -150,19 +197,12 @@ const goBack = () => {
   emit('navigate', 'account')
 }
 
-// 格式化值
+// 格式化值（用于表格展示，截断长文本）
 const formatValue = (value: any): string => {
   if (value === null || value === undefined) return '-'
   if (typeof value === 'boolean') return value ? '是' : '否'
-  if (typeof value === 'number') {
-    // 如果是金额，保留2位小数
-    if (Math.abs(value) > 1000) {
-      return value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    }
-    return value.toString()
-  }
-  if (typeof value === 'string' && value.length > 50) {
-    return value.substring(0, 50) + '...'
+  if (typeof value === 'string' && value.length > 40) {
+    return value.substring(0, 40) + '…'
   }
   return String(value)
 }
@@ -170,21 +210,19 @@ const formatValue = (value: any): string => {
 // 加载表数据
 const loadTableData = async () => {
   if (!selectedTable.value) return
-  
+
   loading.value = true
   try {
-    // 查询数据
     const data = await db.query(`SELECT * FROM ${selectedTable.value}`)
     tableData.value = data
-    
-    // 获取列名
+
     if (data.length > 0) {
       tableColumns.value = Object.keys(data[0])
     } else {
-      tableColumns.value = []
+      // 空表：通过 PRAGMA 获取列名
+      const cols = await db.query(`PRAGMA table_info(${selectedTable.value})`)
+      tableColumns.value = cols.map((c: any) => c.name)
     }
-    
-    console.log(`Loaded ${data.length} records from ${selectedTable.value}`)
   } catch (error) {
     console.error('Error loading table data:', error)
     tableData.value = []
@@ -200,26 +238,89 @@ const refreshData = async () => {
   await checkStorageStatus()
 }
 
+// 打开编辑弹窗
+const openEditDialog = (row: any) => {
+  editingRow.value = row
+  editForm.value = { ...row }
+  editDialogVisible.value = true
+}
+
+// 保存编辑
+const saveEdit = async () => {
+  if (!editingRow.value || !selectedTable.value) return
+
+  const id = editingRow.value.id
+  if (id === undefined || id === null) {
+    ElMessage.error('该记录没有 id 字段，无法更新')
+    return
+  }
+
+  saving.value = true
+  try {
+    const sets = tableColumns.value
+      .filter(k => k !== 'id')
+      .map(k => `${k} = ?`)
+      .join(', ')
+    const vals = tableColumns.value
+      .filter(k => k !== 'id')
+      .map(k => editForm.value[k] ?? null)
+    vals.push(id)
+
+    await db.run(
+      `UPDATE ${selectedTable.value} SET ${sets} WHERE id = ?`,
+      vals
+    )
+    ElMessage.success('更新成功')
+    editDialogVisible.value = false
+    await loadTableData()
+  } catch (error) {
+    console.error('Save error:', error)
+    ElMessage.error(`更新失败: ${(error as any)?.message || error}`)
+  } finally {
+    saving.value = false
+  }
+}
+
+// 删除记录
+const deleteRow = async (row: any) => {
+  const id = row.id
+  if (id === undefined || id === null) {
+    ElMessage.error('该记录没有 id 字段，无法删除')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定删除 id = "${id}" 的记录吗？此操作不可恢复。`,
+      '删除确认',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
+    await db.run(`DELETE FROM ${selectedTable.value} WHERE id = ?`, [id])
+    ElMessage.success('删除成功')
+    await loadTableData()
+  } catch (e: any) {
+    if (e === 'cancel' || e?.action === 'cancel') return
+    console.error('Delete error:', e)
+    ElMessage.error(`删除失败: ${e?.message || e}`)
+  }
+}
+
 // 检查存储状态
 const checkStorageStatus = async () => {
   try {
-    // 获取数据库状态
     const status = db.getStatus()
     isMemoryMode.value = !status.isNative
-    
-    // 检查本地存储（仅Web环境）
+
     if (typeof window !== 'undefined' && window.localStorage) {
       const sqliteData = localStorage.getItem('sqlite_finance-app-db')
-      
       if (sqliteData) {
         const size = new Blob([sqliteData]).size
         sqliteStorageSize.value = formatSize(size)
         isDataSaved.value = true
       } else {
         sqliteStorageSize.value = '0 KB'
-        isDataSaved.value = status.isNative // 原生环境自动持久化
+        isDataSaved.value = status.isNative
       }
-      
       memoryStorageSize.value = '0 KB'
     }
   } catch (error) {
@@ -237,25 +338,23 @@ const formatSize = (bytes: number): string => {
 
 // 清空所有数据
 const clearAllData = async () => {
-  if (confirm('确定要清空所有数据吗？此操作不可恢复！')) {
-    try {
-      // 使用数据库连接池的清空方法
-      await db.clearAllData()
-      
-      // 清空本地存储（Web环境）
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.removeItem('sqlite_finance-app-db')
-      }
-      
-      tableData.value = []
-      tableColumns.value = []
-      await checkStorageStatus()
-      
-      alert('所有数据已清空')
-    } catch (error) {
-      console.error('Error clearing data:', error)
-      alert('清空数据失败')
+  try {
+    await ElMessageBox.confirm(
+      '确定要清空所有数据吗？此操作不可恢复！',
+      '危险操作',
+      { type: 'warning', confirmButtonText: '确认清空', cancelButtonText: '取消' }
+    )
+    await db.clearAllData()
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.removeItem('sqlite_finance-app-db')
     }
+    tableData.value = []
+    tableColumns.value = []
+    await checkStorageStatus()
+    ElMessage.success('所有数据已清空')
+  } catch (e: any) {
+    if (e === 'cancel' || e?.action === 'cancel') return
+    ElMessage.error('清空数据失败')
   }
 }
 
@@ -269,7 +368,6 @@ const loadAllTables = async () => {
       name: t.name,
       label: TABLE_LABELS[t.name] || t.name
     }))
-    // 如果当前选中的表不在列表中，选第一个
     if (allTables.value.length > 0 && !allTables.value.find(t => t.name === selectedTable.value)) {
       selectedTable.value = allTables.value[0].name
     }
@@ -393,7 +491,7 @@ onMounted(async () => {
 
 .data-table-wrapper {
   overflow-x: auto;
-  max-height: 400px;
+  max-height: 420px;
   overflow-y: auto;
 }
 
@@ -405,7 +503,7 @@ onMounted(async () => {
 
 .data-table th,
 .data-table td {
-  padding: 8px 12px;
+  padding: 8px 10px;
   text-align: left;
   border-bottom: 1px solid #f0f0f0;
   white-space: nowrap;
@@ -417,14 +515,22 @@ onMounted(async () => {
   color: #333333;
   position: sticky;
   top: 0;
+  z-index: 1;
 }
 
 .data-table td {
-  color: #666666;
+  color: #555555;
 }
 
-.data-table tr:hover {
+.data-table tr:hover td {
   background-color: #f5f7fa;
+}
+
+/* 操作列 */
+.action-col {
+  text-align: center !important;
+  white-space: nowrap;
+  min-width: 100px;
 }
 
 /* 空状态 */
@@ -451,12 +557,6 @@ onMounted(async () => {
   margin: 0;
 }
 
-.empty-hint {
-  font-size: 14px !important;
-  color: #cccccc !important;
-  margin-top: 8px !important;
-}
-
 /* 加载状态 */
 .loading-state {
   display: flex;
@@ -477,12 +577,8 @@ onMounted(async () => {
 }
 
 @keyframes rotate {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
 /* 存储区域 */
@@ -524,5 +620,24 @@ onMounted(async () => {
   font-size: 14px;
   font-weight: 500;
   color: #333333;
+}
+
+/* 编辑弹窗 */
+.edit-form {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.edit-field {
+  margin-bottom: 12px;
+}
+
+.edit-label {
+  display: block;
+  font-size: 12px;
+  color: #666666;
+  margin-bottom: 4px;
+  font-weight: 500;
 }
 </style>

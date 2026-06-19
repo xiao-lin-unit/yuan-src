@@ -254,6 +254,27 @@ export const MIGRATIONS: Migration[] = [
       await removeForeignKeys(db)
     }
   },
+  {
+    version: '1.0.6',
+    description: 'income_expense_records 表添加 is_required 列并回填历史数据；删除已废弃的 categories 表',
+    migrate: async (db) => {
+      // 1. income_expense_records 表添加 is_required 列
+      try {
+        await db.run(`ALTER TABLE income_expense_records ADD COLUMN is_required INTEGER DEFAULT 0`)
+      } catch (_) { /* 列可能已存在 */ }
+
+      // 2. 回填历史支出记录的 is_required
+      const requiredCatIds = ['cat_1', 'cat_4', 'cat_6', 'cat_7', 'cat_8', 'cat_11', 'cat_12', 'cat_22']
+      const placeholders = requiredCatIds.map(() => '?').join(', ')
+      await db.run(
+        `UPDATE income_expense_records SET is_required = 1 WHERE type = '账户支出' AND sub_type IN (${placeholders})`,
+        requiredCatIds
+      )
+
+      // 3. 删除已废弃的 categories 表（分类现全部来自静态数据）
+      await db.run(`DROP TABLE IF EXISTS categories`)
+    }
+  },
 ]
 
 /** 获取最新版本号 */

@@ -213,11 +213,17 @@ async function loadUserFinancialData() {
 
   const incomes = await db.query(`SELECT amount FROM income_expense_records WHERE type = '账户收入' AND created_at >= ?`, [startStr])
   const expenses = await db.query(`SELECT amount FROM income_expense_records WHERE type = '账户支出' AND created_at >= ?`, [startStr])
+  const requiredExpenses = await db.query(
+    `SELECT amount FROM income_expense_records WHERE type = '账户支出' AND is_required = 1 AND created_at >= ?`,
+    [startStr]
+  )
 
   const totalIncome = incomes.reduce((s: number, r: any) => s + (r.amount || 0), 0)
   const totalExpense = expenses.reduce((s: number, r: any) => s + (r.amount || 0), 0)
+  const totalRequiredExpense = requiredExpenses.reduce((s: number, r: any) => s + (r.amount || 0), 0)
   const monthlyIncome = totalIncome / 3
   const monthlyExpense = totalExpense / 3
+  const monthlyRequiredExpense = totalRequiredExpense / 3
 
   // 月负债还款
   const monthlyRepayment = liabilities.reduce((s: number, l: any) => {
@@ -246,7 +252,7 @@ async function loadUserFinancialData() {
 
   return {
     totalAssets, totalLiabilities, netWorth, liquidBalance,
-    monthlyIncome, monthlyExpense, monthlyRepayment, monthlyCashFlow,
+    monthlyIncome, monthlyExpense, monthlyRequiredExpense, monthlyRepayment, monthlyCashFlow,
     passiveIncome, debtIncomeRatio, stockValue, fundValue, liabilities, assets
   }
 }
@@ -311,31 +317,38 @@ export async function computeSandbox(sceneType: number, params: any): Promise<{ 
     case 1: { // 失业维持时长
       const retainPassive = params.retain_passive_income !== false
       const suspendExpense = params.suspend_expense === true
-      const monthlySpend = suspendExpense ? data.monthlyExpense * 0.7 + data.monthlyRepayment : data.monthlyExpense + data.monthlyRepayment
+      // 计算月花费
+      const monthlySpend = suspendExpense
+        ? data.monthlyRequiredExpense + data.monthlyRepayment
+        : data.monthlyExpense + data.monthlyRepayment
       // 失业情景下不计算社保和公积金类型的资产收益
       const monthlyIn = retainPassive ? data.assets.reduce((s: number, a: any) => {
-        if (a.status === '暂停') return Number(s.toFixed(2))
-        if (a.type === '社保' || a.type === '公积金') return Number(s.toFixed(2))
-        if (a.income_amount) return Number((s + a.income_amount).toFixed(2))
-        if (a.annual_yield_rate && a.amount) return Number((s + a.amount * (a.annual_yield_rate / 100) / 12).toFixed(2))
-        return Number(s.toFixed(2))
+        if (a.status === '暂停') return Amount.format(s)
+        if (a.type === '社保' || a.type === '公积金') return Amount.format(s)
+        if (a.income_amount) return Amount.format(s + a.income_amount)
+        if (a.annual_yield_rate && a.amount) return Amount.format(s + a.amount * (a.annual_yield_rate / 100) / 12)
+        return Amount.format(s)
       }, 0.00) : 0.00
-      const monthlyGap = Number((monthlyIn - monthlySpend).toFixed(2))
-      survivalMonths = monthlyGap >= 0 ? 999 : Number((Math.floor(data.liquidBalance / Math.abs(monthlyGap))).toFixed(0))
-      if (survivalMonths > 120) survivalMonths = 120
+      // 计算月结余
+      const monthlyGap = Amount.format(monthlyIn - monthlySpend)
+      // 计算维持月数
+      survivalMonths = monthlyGap >= 0 ? 999 : Amount.format(Math.floor(data.liquidBalance / Math.abs(monthlyGap)))
+      if (survivalMonths > 1200) survivalMonths = 1200
 
       const actualMonths = Math.min(survivalMonths, 24)
       chartX = Array.from({ length: actualMonths }, (_, i) => `${i + 1}月`)
-      chartNetAssets = Array.from({ length: actualMonths }, (_, i) => Number((data.netWorth + monthlyGap * (i + 1)).toFixed(2)))
-      chartCashFlow = Array.from({ length: actualMonths }, (_, i) => Number((monthlyGap * (i + 1)).toFixed(2)))
+      chartNetAssets = Array.from({ length: actualMonths }, (_, i) => Amount.format(data.liquidBalance + monthlyGap * (i + 1)))
+      chartCashFlow = Array.from({ length: actualMonths }, (_, i) => Amount.format(monthlyGap * (i + 1)))
       chartDebt = Array.from({ length: actualMonths }, (_, i) => {
         const paid = data.liabilities.reduce((s: number, l: any) => s + (l.monthly_payment || 0) * (i + 1), 0)
-        return Number((Math.max(0, data.totalLiabilities - paid)).toFixed(2))
+        return Amount.format(Math.max(0, data.totalLiabilities - paid))
       })
 
-      netAssets = Number(chartNetAssets[chartNetAssets.length - 1].toFixed(2))
-      cashFlow = Number(monthlyGap.toFixed(2))
-      debtPressureLevel = Number((monthlyGap < -data.monthlyIncome * 0.3 ? 3 : 2).toFixed(0))
+      // 净资产 = 初始净资产 - 初始流动资金 + 最终流动资金
+      netAssets = Amount.format(data.netWorth - data.liquidBalance + chartNetAssets[chartNetAssets.length - 1])
+      // 计算现金流变化
+      cashFlow = Amount.format(monthlyGap)
+      debtPressureLevel = Amount.format(monthlyGap < -data.monthlyIncome * 0.3 ? 3 : 2)
       debtPressureDesc = `失业后月现金流缺口${Math.abs(monthlyGap).toFixed(0)}元，可维持${survivalMonths}个月`
       netAssetsChange = `净资产从${data.netWorth.toFixed(2)}元${monthlyGap < 0 ? '衰减' : '增长'}至${netAssets.toFixed(2)}元`
       cashFlowChange = `月现金流从${data.monthlyCashFlow.toFixed(2)}元变为${monthlyGap.toFixed(2)}元`
@@ -687,20 +700,20 @@ export async function computeSandbox(sceneType: number, params: any): Promise<{ 
   const result: SandboxResult = {
     id: history.id + '-result',
     history_id: history.id || now.format('YYYYMMDDHHmmss') + '-' + sceneType,
-    net_assets: Number(netAssets.toFixed(2)),
+    net_assets: Amount.format(netAssets),
     net_assets_change: netAssetsChange,
-    cash_flow_monthly: Number(cashFlow.toFixed(2)),
+    cash_flow_monthly: Amount.format(cashFlow),
     cash_flow_change: cashFlowChange,
     debt_pressure_level: debtPressureLevel,
     debt_pressure_desc: debtPressureDesc,
-    survival_months: survivalMonths !== null ? survivalMonths : undefined,
-    interest_save: interestSave !== null ? interestSave : undefined,
-    monthly_payment_change: monthlyPaymentChange !== null ? monthlyPaymentChange : undefined,
-    total_interest_change: totalInterestChange !== null ? totalInterestChange : undefined,
+    survival_months: survivalMonths !== null ? Amount.format(survivalMonths) : undefined,
+    interest_save: interestSave !== null ? Amount.format(interestSave) : undefined,
+    monthly_payment_change: monthlyPaymentChange !== null ? Amount.format(monthlyPaymentChange) : undefined,
+    total_interest_change: totalInterestChange !== null ? Amount.format(totalInterestChange) : undefined,
     chart_x: JSON.stringify(chartX),
-    chart_net_assets: JSON.stringify(chartNetAssets.map((v: number) => Number(v.toFixed(2)))),
-    chart_cash_flow: JSON.stringify(chartCashFlow.map((v: number) => Number(v.toFixed(2)))),
-    chart_debt: JSON.stringify(chartDebt.map((v: number) => Number(v.toFixed(2)))),
+    chart_net_assets: JSON.stringify(chartNetAssets.map((v: number) => Amount.format(v))),
+    chart_cash_flow: JSON.stringify(chartCashFlow.map((v: number) => Amount.format(v))),
+    chart_debt: JSON.stringify(chartDebt.map((v: number) => Amount.format(v))),
     conclusion,
     created_at: simulateTime
   }

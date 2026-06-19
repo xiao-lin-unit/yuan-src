@@ -62,7 +62,7 @@
       <!-- 文字说明 -->
       <el-card class="text-card" v-if="result.net_assets_change">
         <template #header>
-          <span class="card-title">净资产变动</span>
+          <span class="card-title">资产变动</span>
         </template>
         <div class="text-body">{{ result.net_assets_change }}</div>
       </el-card>

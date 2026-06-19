@@ -1,5 +1,6 @@
 import db from '../../database/index.js'
 import { createCreditTransaction, getAccountById } from '../account/accountService.js'
+import { CategoryService } from '../categoryService.js'
 import { getCurrentString, getCurrentDate, getDate, formatForDB, generateId } from '../../utils/timezone.js'
 import IncomeExpenseRecordsDB from '../../database/tables/income_expense_records.js'
 import AccountTransactionDB from '../../database/tables/account_transactions.js'
@@ -11,6 +12,10 @@ import { IncomeInput } from '../../types/income/income'
 export async function addIncome(income: IncomeInput) {
     const transactionId = generateId()
     const relatedId = transactionId
+
+    // 查询分类的是否必须字段
+    const category = income.sub_type ? await CategoryService.getCategoryById(income.sub_type) : null
+    const isRequired = category?.required ? 1 : 0
 
     // 使用账户入账接口 - 自动处理余额更新和关联资产同步
     const creditResult = await createCreditTransaction(
@@ -37,7 +42,8 @@ export async function addIncome(income: IncomeInput) {
         balance_after: creditResult.balanceAfter,
         remark: income.remark,
         created_at: formatForDB(income.created_at || getCurrentDate()),
-        status: '正常'
+        status: '正常',
+        is_required: isRequired
     }))
 
     // ==============================================
